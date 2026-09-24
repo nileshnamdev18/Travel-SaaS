@@ -7,15 +7,19 @@ import {
   ShieldCheck, 
   Coins, 
   FileText, 
-  Sparkles,
-  ChevronDown,
-  Sun,
-  Moon,
-  Luggage,
-  Bell,
-  ChevronRight,
-  User,
-  Clock
+  Sparkles, 
+  ChevronDown, 
+  Sun, 
+  Moon, 
+  Luggage, 
+  Bell, 
+  ChevronRight, 
+  User, 
+  Clock,
+  Phone,
+  Tag,
+  Shield,
+  Award
 } from 'lucide-react';
 
 export const NavigationBar: React.FC = () => {
@@ -35,6 +39,7 @@ export const NavigationBar: React.FC = () => {
   } = useApp();
 
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
 
   const roles: { role: UserRole; label: string; desc: string; color: string }[] = [
     { role: 'traveler', label: 'Traveler / Employee', desc: 'Consumer-grade search, book & manage personal trips', color: '#2563eb' },
@@ -56,56 +61,133 @@ export const NavigationBar: React.FC = () => {
     else setActivePortal('admin');
   };
 
+  const copyPromo = () => {
+    navigator.clipboard.writeText('PULSEAI');
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
+
   return (
-    <header className="top-nav">
-      <div className="nav-inner">
-        {/* Brand Logo */}
-        <div className="brand-logo" style={{ flexShrink: 0 }}>
-          <div className="logo-icon">
-            <Sparkles size={20} />
+    <>
+      {/* Top Notice & Helpline Strip */}
+      <div className="top-notice-strip">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600 }}>
+            <Phone size={13} color="var(--brand-accent)" />
+            <span>24x7 Global Desk: <strong style={{ color: 'var(--text-heading)' }}>+1 (800) 550-7857</strong> / <strong style={{ color: 'var(--text-heading)' }}>+91 22 4066 6400</strong></span>
           </div>
-          <div>
-            <span style={{ color: 'var(--text-heading)', fontWeight: 800 }}>TRAVEL</span>
-            <span style={{ color: 'var(--brand-blue)', fontWeight: 800 }}>PULSE</span>
-            <span style={{ 
-              fontSize: '0.6rem', 
-              background: 'var(--bg-card-subtle)', 
-              border: '1px solid var(--border-color)',
-              padding: '2px 6px', 
-              borderRadius: '4px', 
-              marginLeft: '6px', 
-              color: 'var(--text-muted)',
-              fontWeight: 600
-            }}>
-              AI SaaS
-            </span>
+          <span style={{ color: 'var(--border-strong)', display: 'inline-block' }}>|</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem' }}>
+            <Award size={13} color="var(--brand-blue)" />
+            <span style={{ color: 'var(--text-muted)' }}>IATA Accredited • Saudi Nusuk Protocol • PCI-DSS Certified</span>
           </div>
         </div>
 
-        {/* Portal Switcher */}
-        <div className="portal-switcher">
-          <button 
-            className={`portal-tab ${activePortal === 'b2c' ? 'active-b2c' : ''}`}
-            onClick={() => setActivePortal('b2c')}
+        {/* Promo Voucher Highlight */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div 
+            onClick={copyPromo}
+            style={{ 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              gap: '6px', 
+              cursor: 'pointer',
+              background: 'rgba(250, 58, 58, 0.08)',
+              border: '1px dashed var(--brand-accent)',
+              padding: '2px 10px',
+              borderRadius: 'var(--radius-full)',
+              fontSize: '0.78rem'
+            }}
+            title="Click to copy coupon code"
           >
-            <Compass size={15} />
-            <span>Discover & Book</span>
-          </button>
+            <Tag size={12} color="var(--brand-accent)" />
+            <span>Use Code <strong style={{ color: 'var(--brand-accent)', letterSpacing: '0.04em' }}>PULSEAI</strong> for Flat ₹1,500 / $25 OFF</span>
+            <span style={{ fontSize: '0.7rem', color: copiedCode ? 'var(--color-success)' : 'var(--text-muted)', fontWeight: 600, marginLeft: '4px' }}>
+              {copiedCode ? '✓ Copied!' : '(Copy)'}
+            </span>
+          </div>
+
           <button 
-            className={`portal-tab ${activePortal === 'b2b' ? 'active-b2b' : ''}`}
-            onClick={() => setActivePortal('b2b')}
+            onClick={() => { setActiveRole('agency_admin'); setActivePortal('b2b'); }}
+            style={{
+              background: 'var(--brand-navy)',
+              color: '#ffffff',
+              border: 'none',
+              padding: '2px 10px',
+              borderRadius: '4px',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase'
+            }}
           >
-            <Briefcase size={15} />
-            <span>Agency / Corporate</span>
-          </button>
-          <button 
-            className={`portal-tab ${activePortal === 'admin' ? 'active-admin' : ''}`}
-            onClick={() => setActivePortal('admin')}
-          >
-            <ShieldCheck size={15} />
-            <span>Admin Hub</span>
+            Corporate Portal
           </button>
         </div>
+      </div>
+
+      <header className="top-nav">
+        <div className="nav-inner">
+          {/* Brand Logo - TravelPulse AI */}
+          <div 
+            className="brand-logo" 
+            style={{ flexShrink: 0, cursor: 'pointer' }}
+            onClick={() => setActivePortal('b2c')}
+          >
+            <div style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '8px',
+              background: 'linear-gradient(135deg, #032559 0%, #fa3a3a 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              boxShadow: '0 2px 8px rgba(3, 37, 89, 0.25)'
+            }}>
+              <Compass size={20} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', lineHeight: 1.1 }}>
+                <span style={{ color: 'var(--text-heading)', fontWeight: 900, fontSize: '1.25rem', letterSpacing: '-0.02em' }}>TRAVEL</span>
+                <span style={{ color: 'var(--brand-accent)', fontWeight: 900, fontSize: '1.25rem', letterSpacing: '-0.02em' }}>PULSE</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                  Enterprise SaaS
+                </span>
+                <span style={{ fontSize: '0.58rem', background: 'rgba(37,99,235,0.1)', color: 'var(--brand-blue)', padding: '1px 5px', borderRadius: '3px', fontWeight: 700 }}>
+                  v2.5 PRO
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Portal Switcher */}
+          <div className="portal-switcher">
+            <button 
+              className={`portal-tab ${activePortal === 'b2c' ? 'active-b2c' : ''}`}
+              onClick={() => setActivePortal('b2c')}
+            >
+              <Compass size={15} />
+              <span>Book Flights & Travel</span>
+            </button>
+            <button 
+              className={`portal-tab ${activePortal === 'b2b' ? 'active-b2b' : ''}`}
+              onClick={() => setActivePortal('b2b')}
+            >
+              <Briefcase size={15} />
+              <span>Corporate & Agency B2B</span>
+            </button>
+            <button 
+              className={`portal-tab ${activePortal === 'admin' ? 'active-admin' : ''}`}
+              onClick={() => setActivePortal('admin')}
+            >
+              <ShieldCheck size={15} />
+              <span>Admin Hub</span>
+            </button>
+          </div>
 
         {/* Right Controls */}
         <div className="nav-controls">
@@ -244,5 +326,6 @@ export const NavigationBar: React.FC = () => {
         </div>
       </div>
     </header>
+    </>
   );
 };

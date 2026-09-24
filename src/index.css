@@ -61,6 +61,19 @@
   --color-danger: #ef4444;
   --color-info: #3b82f6;
 
+  /* Premium Travel SaaS Palette */
+  --brand-navy: #032559;
+  --brand-blue: #034e8d;
+  --brand-blue-light: #e8f2fc;
+  --brand-accent: #fa3a3a;
+  --brand-accent-hover: #e02828;
+  --brand-accent-light: #fef2f2;
+  --brand-amber: #f59e0b;
+  --notice-bg: #fff8e6;
+  --notice-border: #fde68a;
+  --hero-gradient: linear-gradient(135deg, #032559 0%, #034e8d 60%, #1d4ed8 100%);
+  --brand-btn-gradient: linear-gradient(135deg, #fa3a3a 0%, #ef4444 100%);
+
   /* Shadow & Elevation (Soft Luminous for Light Theme) */
   --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.05);
   --shadow-md: 0 4px 14px rgba(15, 23, 42, 0.06);
@@ -96,6 +109,17 @@
   --text-heading: #ffffff;
   --text-muted: #94a3b8;
   --text-dim: #64748b;
+
+  --brand-navy: #06152b;
+  --brand-blue: #1e3a8a;
+  --brand-blue-light: rgba(30, 58, 138, 0.25);
+  --brand-accent: #f87171;
+  --brand-accent-hover: #ef4444;
+  --brand-accent-light: rgba(239, 68, 68, 0.15);
+  --notice-bg: rgba(245, 158, 11, 0.08);
+  --notice-border: rgba(245, 158, 11, 0.25);
+  --hero-gradient: linear-gradient(135deg, #06152b 0%, #0c234b 60%, #172554 100%);
+  --brand-btn-gradient: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
 
   --bg-dark: var(--bg-primary);
   --bg-dark-elevated: var(--bg-elevated);
@@ -773,4 +797,237 @@ a {
     linear-gradient(to right, rgba(13, 148, 136, 0.1) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(13, 148, 136, 0.1) 1px, transparent 1px);
   pointer-events: none;
+}
+
+/* ==========================================================================
+   TRAVELPULSE SIGNATURE UI COMPONENTS
+   ========================================================================== */
+
+/* Top Notice Ticker Strip */
+.top-notice-strip {
+  background: var(--notice-bg);
+  border-bottom: 1px solid var(--notice-border);
+  font-size: 0.8rem;
+  padding: 0.45rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  color: var(--text-main);
+  transition: var(--transition);
+}
+
+.travel-deal-tag {
+  background: var(--brand-accent);
+  color: #ffffff;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-weight: 700;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+/* Service Navigation Bar */
+.travel-services-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.5rem 0.25rem;
+  scrollbar-width: none;
+}
+.travel-services-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.travel-service-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.65rem 1.25rem;
+  border-radius: var(--radius-full);
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: var(--transition);
+  box-shadow: var(--shadow-sm);
+}
+
+.travel-service-item:hover {
+  color: var(--brand-accent);
+  border-color: var(--brand-accent);
+  transform: translateY(-1px);
+}
+
+.travel-service-item.active {
+  background: var(--brand-accent);
+  color: #ffffff;
+  border-color: var(--brand-accent);
+  box-shadow: 0 4px 14px rgba(250, 58, 58, 0.3);
+}
+
+.travel-service-item.active-umrah {
+  background: linear-gradient(135deg, #065f46 0%, #059669 100%);
+  color: #ffffff;
+  border-color: #059669;
+  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.3);
+}
+
+/* Main Hero Search Console */
+.travel-hero-container {
+  position: relative;
+  border-radius: var(--radius-xl);
+  background: var(--hero-gradient);
+  padding: 2.25rem 2rem 2.75rem;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  color: #ffffff;
+}
+
+.travel-hero-bg-overlay {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.12) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.travel-search-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  padding: 1.75rem;
+  box-shadow: var(--card-shadow-hover);
+  border: 1px solid var(--border-color);
+  margin-top: 1.25rem;
+}
+
+/* Special Fares Radio Row */
+.special-fares-container {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 1rem;
+  background: var(--bg-card-subtle);
+  border-radius: var(--radius-md);
+  margin-bottom: 1.25rem;
+  font-size: 0.85rem;
+}
+
+.special-fare-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+  transition: var(--transition);
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.special-fare-badge.selected {
+  background: rgba(250, 58, 58, 0.1);
+  border-color: var(--brand-accent);
+  color: var(--brand-accent);
+  font-weight: 700;
+}
+
+/* 7-Day Lowest Fare Bar */
+.travel-fare-calendar {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 0.5rem 0;
+  scrollbar-width: none;
+}
+
+.fare-date-chip {
+  flex: 1;
+  min-width: 100px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  text-align: center;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.fare-date-chip:hover, .fare-date-chip.active {
+  border-color: var(--brand-accent);
+  background: rgba(250, 58, 58, 0.05);
+}
+
+.fare-date-chip.lowest {
+  border-color: var(--color-success);
+  background: rgba(16, 185, 129, 0.06);
+}
+
+/* Coupon & Promo Deals Card */
+.travel-deal-box {
+  background: var(--bg-card);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1rem;
+  transition: var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+
+.travel-deal-box:hover {
+  border-color: var(--brand-accent);
+  transform: translateY(-3px);
+  box-shadow: var(--card-shadow);
+}
+
+.travel-btn-primary {
+  background: var(--brand-btn-gradient);
+  color: #ffffff;
+  border: none;
+  font-weight: 800;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+  padding: 0.85rem 2rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 15px rgba(250, 58, 58, 0.35);
+  transition: var(--transition);
+}
+
+.travel-btn-primary:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(250, 58, 58, 0.45);
+}
+
+.trust-badge-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition);
+}
+.trust-badge-card:hover {
+  box-shadow: var(--card-shadow-hover);
+  border-color: var(--brand-blue);
+  transform: translateY(-2px);
 }
