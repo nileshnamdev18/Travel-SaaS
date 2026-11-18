@@ -1,14 +1,16 @@
-// Domain Types for TravelPulse AI Platform
+// Domain Types for TravelPulse AI Platform - 2-Role System (Customer & Super Admin)
 
-export type PortalType = 'b2c' | 'b2b' | 'admin';
+export type PortalType = 'customer' | 'admin' | 'b2c';
 
 export type UserRole = 
+  | 'customer'
+  | 'super_admin'
+  // Legacy roles kept for type backwards-compatibility:
   | 'traveler'
   | 'agency_agent'
   | 'agency_admin'
   | 'support_agent'
-  | 'finance_admin'
-  | 'super_admin';
+  | 'finance_admin';
 
 export type CurrencyCode = 'USD' | 'SAR' | 'INR' | 'EUR' | 'AED';
 
@@ -20,7 +22,7 @@ export interface CurrencyConfig {
   rateToUSD: number; // e.g. USD = 1.0, SAR = 3.75, INR = 83.5, EUR = 0.92, AED = 3.67
 }
 
-// ======================== FLIGHT TYPES (Navan & Booking.com Benchmark) ========================
+// ======================== FLIGHT TYPES (Akbar Travels Benchmark) ========================
 export type CabinClass = 'Economy' | 'Premium Economy' | 'Business' | 'First';
 
 export interface Airport {
@@ -65,13 +67,13 @@ export interface FlightOption {
   basePriceUSD: number;
   baggageAllowance: string;
   seatsAvailable: number;
-  inPolicy: boolean; // Corporate compliance indicator
+  inPolicy: boolean;
   policyNote?: string;
   carbonKg: number;
   refundable: boolean;
 }
 
-// ======================== HOTEL TYPES (Booking.com Benchmark) ========================
+// ======================== HOTEL TYPES (Akbar Travels Benchmark) ========================
 export interface HotelRoomTier {
   id: string;
   title: string;
@@ -91,71 +93,24 @@ export interface HotelOption {
   country: string;
   address: string;
   starRating: number;
-  reviewScore: number; // e.g. 9.3
+  reviewScore: number;
   reviewCount: number;
   distanceToCenter: string;
-  distanceToHaramMeters?: number; // for Makkah / Madinah
+  distanceToHaramMeters?: number;
   distanceToHaramLabel?: string;
   heroImage: string;
   galleryImages: string[];
   amenities: string[];
-  tags: string[]; // e.g. 'Near Haram', 'Free Breakfast', 'Luxury Spa'
+  tags: string[];
   basePriceUSD: number;
   inPolicy: boolean;
   rooms: HotelRoomTier[];
 }
 
-// ======================== UMRAH TYPES (umrahcenter.com benchmark) ========================
-export type RoomSharingType = 'quad' | 'triple' | 'double' | 'single';
+// ======================== VISA TYPES (Atlys Benchmark: eVisa & Sticker Visa) ========================
+export type VisaFlowType = 'evisa' | 'sticker';
+export type VisaCategory = 'popular' | 'instant_evisa' | 'sticker' | 'on_arrival';
 
-export interface ZiyarahSite {
-  id: string;
-  name: string;
-  city: 'Makkah' | 'Madinah';
-  description: string;
-  isIncluded: boolean;
-  durationHours: number;
-}
-
-export interface UmrahHotel {
-  id: string;
-  name: string;
-  city: 'Makkah' | 'Madinah';
-  stars: number;
-  distanceMeters: number;
-  distanceLabel: string; // e.g. "50m from Haram (Clock Tower)"
-  isShuttleService: boolean;
-  image: string;
-}
-
-export interface UmrahPackage {
-  id: string;
-  title: string;
-  type: 'fixed' | 'custom';
-  badge?: string;
-  durationNightsMakkah: number;
-  durationNightsMadinah: number;
-  makkahHotel: UmrahHotel;
-  madinahHotel: UmrahHotel;
-  flightIncluded: boolean;
-  airline?: string;
-  departureCity?: string;
-  departureDates?: string[];
-  pricingPerPax: {
-    quad: number;
-    triple: number;
-    double: number;
-    single: number;
-  };
-  ziyarahSites: ZiyarahSite[];
-  mutawwifGuideIncluded: boolean;
-  zamzamWaterIncluded: boolean; // 5L sealed container
-  nusukPermitSyncStatus: 'Ready' | 'In Progress' | 'Requires Verification';
-  image: string;
-  supplierWholesaleBaseCost: number; // for B2B markup calculation
-}
-
-// ======================== VISA TYPES (visa2fly.com benchmark) ========================
 export interface VisaDocumentRequirement {
   id: string;
   title: string;
@@ -175,6 +130,7 @@ export interface VisaOption {
   govFee: number;
   platformFee: number;
   expressSurcharge?: number;
+  visaType?: VisaFlowType; // eVisa or Sticker
 }
 
 export interface CountryVisaInfo {
@@ -184,10 +140,19 @@ export interface CountryVisaInfo {
   flag: string;
   bannerImage: string;
   popular: boolean;
+  category?: VisaCategory;
+  guaranteeSlaDays?: number; // e.g. 2 for 48 hrs, 4 for 4 days
+  fastestTurnaround?: string; // e.g. '24h Express'
+  tagline?: string;
+  rejectionRefundPolicy?: string; // e.g. '100% Atlys Fee Refund on Delay'
   requiresPassportOCR: boolean;
   options: VisaOption[];
   requirements: VisaDocumentRequirement[];
   icaoRules: string[];
+  supportsStickerVisa?: boolean;
+  embassyLocation?: string;
+  appointmentRequired?: boolean;
+  vfsCenters?: string[];
 }
 
 export interface PassportOCRData {
@@ -200,7 +165,7 @@ export interface PassportOCRData {
   gender: 'M' | 'F';
   mrzLine1: string;
   mrzLine2: string;
-  confidenceScore: number; // e.g. 99.4
+  confidenceScore: number; // e.g. 99.4%
 }
 
 export type VisaApplicationStatus = 
@@ -211,26 +176,67 @@ export type VisaApplicationStatus =
   | 'approved'
   | 'rejected';
 
+export interface VisaTimelineEvent {
+  status: string;
+  timestamp: string;
+  title: string;
+  description: string;
+  completed: boolean;
+}
+
+export interface DoorstepAddress {
+  fullName: string;
+  phone: string;
+  addressLine: string;
+  city: string;
+  pincode: string;
+  pickupSlot: string;
+}
+
 export interface VisaApplicationRecord {
   id: string;
+  trackingId: string; // e.g. ATLYS-IN-41982
   applicantName: string;
+  applicantEmail?: string;
+  applicantPhone?: string;
   passportNumber: string;
+  countryId?: string;
   country: string;
   visaType: string;
+  flowType?: VisaFlowType;
   status: VisaApplicationStatus;
   submissionDate: string;
   estimatedCompletion: string;
+  guaranteedDeliveryDate?: string;
   ocrExtracted: boolean;
   whatsappNotified: boolean;
-  trackingId: string;
+  govFeeUSD?: number;
+  platformFeeUSD?: number;
+  totalAmountUSD?: number;
+  doorstepAddress?: DoorstepAddress;
+  timeline?: VisaTimelineEvent[];
+  adminNotes?: string;
 }
 
-// ======================== HOLIDAYS TYPES ========================
+export interface AdminVisaConfig {
+  globalPlatformFeeUSD: number;
+  expressTurnaroundSurchargeUSD: number;
+  onTimeGuaranteeActive: boolean;
+  doorstepCourierFeeUSD: number;
+  supportHelpline: string;
+  whatsappSupportNumber: string;
+}
+
+// ======================== HOLIDAYS TYPES (Thomas Cook Benchmark) ========================
+export type HolidayDestinationType = 'domestic' | 'international';
+export type HolidayTheme = 'all' | 'honeymoon' | 'family' | 'adventure' | 'luxury' | 'group_tour' | 'wildlife';
+export type HolidayBookingStatus = 'inquiry_received' | 'customizing' | 'quote_sent' | 'confirmed' | 'cancelled';
+
 export interface ActivityOption {
   id: string;
   title: string;
   duration: string;
-  priceDelta: number; // 0 for base, +$ for upgrade
+  priceDelta: number;
   image: string;
   description: string;
 }
@@ -243,93 +249,86 @@ export interface DayItinerary {
   alternativeActivities: ActivityOption[];
   hotelName: string;
   hotelTier: 'Comfort' | 'Superior' | 'Luxury 5-Star';
+  mealsIncluded?: string[];
 }
 
 export interface HolidayPackage {
   id: string;
   title: string;
   destination: string;
-  category: 'Customized' | 'Fixed Departure';
+  destinationType?: HolidayDestinationType;
+  region?: string;
+  theme?: HolidayTheme;
+  category: 'Customized' | 'Fixed Departure' | 'Group Tour';
   durationDays: number;
+  durationNights?: number;
+  departureCities?: string[];
   basePrice: number;
   wholesaleCost: number;
   heroImage: string;
+  galleryImages?: string[];
   highlights: string[];
+  inclusions?: string[];
+  exclusions?: string[];
   days: DayItinerary[];
+  hotelTiers?: { standard: string; deluxe: string; luxury: string };
+  isBestSeller?: boolean;
+  isFeatured?: boolean;
+  isTrending?: boolean;
+  discountPercent?: number;
+  cancellationPolicy?: string;
 }
 
-// ======================== M.I.C.E. TYPES ========================
-export interface MiceRfqForm {
-  companyName: string;
-  contactName: string;
-  contactEmail: string;
-  contactPhone: string;
-  paxCount: number;
-  destination: string;
-  eventType: 'Conference & Summit' | 'Incentive Trip' | 'Annual Gala' | 'Board Retreat';
-  durationDays: number;
-  cateringTier: 'Executive Standard' | 'Premium Gourmet' | 'Royal Banquet';
-  requiresShuttleLogistics: boolean;
-  requiresSimultaneousTranslation: boolean;
-  specialRequests: string;
-}
-
-export interface MiceCopilotOutput {
-  estimatedTotalMin: number;
-  estimatedTotalMax: number;
-  estimatedPerPax: number;
-  recommendedVenues: string[];
-  logisticsOverview: string;
-  confidenceBand: string; // e.g. "± 6.5%"
-}
-
-// ======================== B2B AGENCY & CORPORATE TYPES ========================
-export interface AgencyBranding {
-  agencyName: string;
-  licenseNumber: string;
-  logoUrl?: string;
-  primaryColor: string;
-  phone: string;
-  email: string;
-  address: string;
-  footerDisclaimer: string;
-}
-
-export interface AgencyWallet {
-  balance: number;
-  creditLimit: number;
-  usedCredit: number;
-  availablePower: number;
-  currency: CurrencyCode;
-}
-
-export interface QuotationRecord {
+export interface HolidayBookingRecord {
   id: string;
-  quoteNumber: string;
-  clientName: string;
-  clientPhone: string;
-  clientEmail: string;
-  vertical: 'Umrah' | 'Visa' | 'Holidays' | 'MICE' | 'Flights' | 'Hotels';
+  bookingReference: string;
+  packageId: string;
   packageTitle: string;
-  pax: number;
-  wholesaleSupplierCost: number;
-  markupType: 'percentage' | 'flat';
-  markupValue: number;
-  clientSellingPrice: number;
-  validUntil: string;
-  status: 'Draft' | 'Sent' | 'Approved' | 'Expired';
-  agencyBrandingSnapshot: AgencyBranding;
-  deliveryStatus: {
-    downloaded: boolean;
-    whatsappSent: boolean;
-    emailSent: boolean;
-    lastDeliveredAt?: string;
-  };
+  destination: string;
+  destinationType: HolidayDestinationType;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  departureCity: string;
+  travelDate: string;
+  paxAdults: number;
+  paxChildren: number;
+  selectedHotelTier: 'Comfort' | 'Superior' | 'Luxury 5-Star';
+  totalAmountUSD: number;
+  wholesaleCostUSD: number;
+  markupAmountUSD: number;
+  status: HolidayBookingStatus;
+  customNotes?: string;
+  createdAt: string;
+}
+
+export interface AdminHolidayConfig {
+  partnerMarkupPercent: number;
+  groupDiscountPercent: number;
+  tourManagerIncludedByDefault: boolean;
+  supportHelpline: string;
+  whatsappInquiryNumber: string;
+  enableInstantBooking: boolean;
+}
+
+// ======================== CHATBOT & CUSTOM TRIP INQUIRY TYPES ========================
+export interface TravelInquiry {
+  id: string;
+  name: string;
+  phone: string;
+  travelType: 'Domestic' | 'International';
+  destination: string;
+  travelDates: string;
+  travelers: number;
+  service: string;
+  timestamp: string;
+  source: 'Chatbot' | 'CustomTripAI';
+  notes?: string;
 }
 
 // ======================== REAL BOOKING RECORD & POLICY ========================
 export type BookingStatus = 'confirmed' | 'pending_approval' | 'cancelled' | 'completed' | 'approved' | 'rejected';
-export type BookingVertical = 'flight' | 'hotel' | 'umrah' | 'visa' | 'holiday' | 'mice';
+export type BookingVertical = 'flight' | 'hotel' | 'visa' | 'holiday' | 'umrah' | 'mice';
 
 export interface BookingPassenger {
   fullName: string;
@@ -343,7 +342,7 @@ export interface BookingPassenger {
 
 export interface BookingRecord {
   id: string;
-  referenceCode: string; // e.g. TP-FL-83921
+  referenceCode: string;
   bookingRef?: string;
   vertical: BookingVertical;
   title: string;
@@ -373,10 +372,9 @@ export interface BookingRecord {
     priceUSD: number;
   }>;
   paymentMethod: 'Corporate Credit Line' | 'Corporate Card' | 'Personal Visa' | 'Apple Pay';
-  details: Record<string, any>; // Extra specific details (e.g., flight code, hotel address, room tier)
+  details: Record<string, any>;
 }
 
-// Corporate Travel Policy Engine (Navan / TravelPerk Benchmark)
 export interface CorporateTravelPolicy {
   companyName: string;
   maxFlightBudgetUSD: number;
@@ -391,7 +389,6 @@ export interface CorporateTravelPolicy {
   enableEmergencyAssistance: boolean;
 }
 
-// Dynamic Platform Markup Config (Admin Managed)
 export interface AdminMarkupConfig {
   flightsFlatUSD: number;
   hotelsPercent: number;
@@ -400,7 +397,7 @@ export interface AdminMarkupConfig {
   holidaysPercent: number;
 }
 
-// ======================== SUPER ADMIN & OPERATIONS ========================
+// ======================== LEGACY / AUDIT / COMPATIBILITY TYPES ========================
 export type LeadPipelineStatus = 'New' | 'Contacted' | 'Quotation Sent' | 'Booking Confirmed' | 'Lost';
 
 export interface LeadRecord {
@@ -409,7 +406,7 @@ export interface LeadRecord {
   clientPhone: string;
   clientEmail: string;
   vertical: 'Umrah' | 'Visa' | 'Holidays' | 'MICE';
-  source: 'Google Ads Search' | 'Meta Reels / Ads' | 'TikTok Umrah Special' | 'Organic SEO' | 'Agent Referral';
+  source: string;
   utmCampaign: string;
   assignedStaffId: string;
   assignedStaffName: string;
@@ -423,35 +420,35 @@ export interface LeadRecord {
 export interface StaffMember {
   id: string;
   name: string;
-  role: 'Sales Executive' | 'Reservations Specialist' | 'Umrah Ground Operations' | 'Visa Processing Desk';
+  role: string;
   activeLeads: number;
   conversionsThisMonth: number;
-  conversionRate: number; // percentage
+  conversionRate: number;
   avatar: string;
 }
 
 export interface VendorLedgerRecord {
   id: string;
   vendorName: string;
-  vendorType: 'Hotel Chain' | 'Aviation Block' | 'Transport Fleet' | 'Ground Ziyarah Operator' | 'Visa Facilitation';
+  vendorType: string;
   totalBookedAmount: number;
   amountPaid: number;
   pendingBalance: number;
   nextDueDate: string;
   isOverdue: boolean;
   reconciliationStatus: 'Reconciled' | 'Pending Review' | 'Disputed';
-  paymentMode: 'Bank Wire' | 'Corporate Card' | 'Direct Gateway';
+  paymentMode: string;
 }
 
 export interface OfflineRateSheet {
   id: string;
   vendorName: string;
-  category: string; // e.g. "GMC Yukon Fleet - Makkah to Madinah"
+  category: string;
   validFrom: string;
   validTo: string;
   unitPrice: number;
   currency: CurrencyCode;
-  sourceTag: 'Offline/Manual' | 'API Feed';
+  sourceTag: string;
   expiryWarning: boolean;
 }
 
@@ -470,7 +467,7 @@ export interface InvoiceDocument {
     total: number;
   }>;
   subtotal: number;
-  taxRatePercent: number; // VAT or GST
+  taxRatePercent: number;
   taxAmount: number;
   grandTotal: number;
   isPaid: boolean;
@@ -492,4 +489,85 @@ export interface AuditLogEntry {
   previousValue: string;
   newValue: string;
   ipAddress: string;
+}
+
+export interface AgencyBranding {
+  agencyName: string;
+  licenseNumber: string;
+  logoUrl?: string;
+  primaryColor: string;
+  phone: string;
+  email: string;
+  address: string;
+  footerDisclaimer: string;
+}
+
+export interface AgencyWallet {
+  balance: number;
+  creditLimit: number;
+  usedCredit: number;
+  availablePower: number;
+  currency: CurrencyCode;
+}
+
+export interface QuotationRecord {
+  id: string;
+  quoteNumber: string;
+  clientName: string;
+  clientPhone: string;
+  clientEmail: string;
+  vertical: string;
+  packageTitle: string;
+  pax: number;
+  wholesaleSupplierCost: number;
+  markupType: 'percentage' | 'flat';
+  markupValue: number;
+  clientSellingPrice: number;
+  validUntil: string;
+  status: 'Draft' | 'Sent' | 'Approved' | 'Expired';
+  agencyBrandingSnapshot: AgencyBranding;
+  deliveryStatus: {
+    downloaded: boolean;
+    whatsappSent: boolean;
+    emailSent: boolean;
+    lastDeliveredAt?: string;
+  };
+}
+
+export interface UmrahHotel {
+  id: string;
+  name: string;
+  city: 'Makkah' | 'Madinah';
+  stars: number;
+  distanceMeters: number;
+  distanceLabel: string;
+  isShuttleService: boolean;
+  image: string;
+}
+
+export interface UmrahPackage {
+  id: string;
+  title: string;
+  type: 'fixed' | 'custom';
+  badge?: string;
+  durationNightsMakkah: number;
+  durationNightsMadinah: number;
+  makkahHotel: UmrahHotel;
+  madinahHotel: UmrahHotel;
+  flightIncluded: boolean;
+  airline?: string;
+  departureCity?: string;
+  departureDates?: string[];
+  pricingPerPax: {
+    quad: number;
+    triple: number;
+    double: number;
+    single: number;
+  };
+  ziyarahSites: any[];
+  mutawwifGuideIncluded: boolean;
+  zamzamWaterIncluded: boolean;
+  nusukPermitSyncStatus: string;
+  image: string;
+  supplierWholesaleBaseCost: number;
 }

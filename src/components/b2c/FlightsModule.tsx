@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { FlightOption } from '../../types';
-import { 
-  Plane, 
-  ArrowRight, 
-  Filter, 
-  ShieldCheck, 
-  AlertTriangle, 
-  Luggage, 
-  Zap, 
+import {
+  Plane,
+  ArrowRight,
+  Filter,
+  ShieldCheck,
+  AlertTriangle,
+  Luggage,
+  Zap,
   Calendar,
   Users,
   Award,
@@ -44,12 +44,12 @@ export const FlightsModule: React.FC = () => {
 
   const [tripType, setTripType] = useState<'oneway' | 'roundtrip' | 'multicity'>('oneway');
   const [specialFare, setSpecialFare] = useState<'regular' | 'armed_forces' | 'student' | 'senior' | 'corporate'>('regular');
-  
+
   const [origin, setOrigin] = useState<string>('BOM');
   const [destination, setDestination] = useState<string>('DXB');
   const [departureDate, setDepartureDate] = useState<string>('2026-10-15');
   const [returnDate, setReturnDate] = useState<string>('2026-10-22');
-  
+
   const [adults, setAdults] = useState<number>(1);
   const [children, setChildren] = useState<number>(0);
   const [cabinClass, setCabinClass] = useState<string>('Economy');
@@ -60,7 +60,7 @@ export const FlightsModule: React.FC = () => {
   const [filterAirline, setFilterAirline] = useState<string>('all');
   const [filterRefundable, setFilterRefundable] = useState<boolean>(false);
   const [sortBy, setSortBy] = useState<'price' | 'duration'>('price');
-  
+
   // Active calendar date
   const [activeCalendarDate, setActiveCalendarDate] = useState<string>('2026-10-15');
   const [copiedCoupon, setCopiedCoupon] = useState<string | null>(null);
@@ -86,10 +86,10 @@ export const FlightsModule: React.FC = () => {
   // Exclusive promotional coupons
   const promoCoupons = [
     {
-      code: 'PULSEAI',
+      code: 'AKBAR25',
       title: 'Flat ₹1,500 / $25 OFF',
-      subtitle: 'On International Flights & Umrah Sectors',
-      tag: 'HOT DEAL',
+      subtitle: 'On All Domestic & International Flights',
+      tag: 'AKBAR SPECIAL',
       minSpend: 'No Min Booking'
     },
     {
@@ -97,21 +97,21 @@ export const FlightsModule: React.FC = () => {
       title: 'Zero Convenience Fee',
       subtitle: 'Valid on Domestic & Gulf Direct Flights',
       tag: 'INSTANT SAVING',
-      minSpend: 'UPI & Corporate Cards'
+      minSpend: 'UPI & Cards'
     },
     {
-      code: 'HOLYUMRAH',
-      title: 'Flat $150 OFF / Pilgrim',
-      subtitle: 'Direct Saudia Group PNR & Clock Tower',
-      tag: 'PILGRIMAGE',
-      minSpend: 'Umrah Package'
+      code: 'ATGLOBAL',
+      title: 'Flat ₹3,000 OFF',
+      subtitle: 'On Long-Haul International Flights',
+      tag: 'GLOBAL DEAL',
+      minSpend: 'International Booking'
     },
     {
-      code: 'CORP12',
-      title: 'Corporate 12% Cashback',
-      subtitle: 'For Verified SME & Corporate Travelers',
-      tag: 'CORPORATE',
-      minSpend: 'Business Class'
+      code: 'SPECIALSAVER',
+      title: 'Instant 10% Discount',
+      subtitle: 'For Students, Seniors & Defense Personnel',
+      tag: 'SPECIAL FARE',
+      minSpend: 'Select Categories'
     }
   ];
 
@@ -160,28 +160,28 @@ export const FlightsModule: React.FC = () => {
       {/* Hero Search Container */}
       <div className="travel-hero-container">
         <div className="travel-hero-bg-overlay" />
-        
+
         <div style={{ position: 'relative', zIndex: 1 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
             <div>
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', padding: '4px 14px', borderRadius: 'var(--radius-full)', fontSize: '0.78rem', fontWeight: 700, marginBottom: '0.5rem', letterSpacing: '0.04em' }}>
                 <Zap size={13} color="var(--gold-400)" />
-                <span>TRAVELPULSE AI DIRECT GDS CONNECT • LOWEST FARE GUARANTEED</span>
+                <span>AKBAR TRAVELS DIRECT CONNECT • LOWEST AIRFARES GUARANTEED</span>
               </div>
               <h1 style={{ fontSize: '2.4rem', fontWeight: 900, color: '#ffffff', letterSpacing: '-0.03em', lineHeight: 1.15 }}>
-                Book Cheap Domestic & International Flights
+                Book Flights with Akbar Travels
               </h1>
               <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.95rem', marginTop: '6px', maxWidth: '640px' }}>
-                Compare live airline inventory across IndiGo, Emirates, Saudia, Air India & 100+ carriers. Corporate policy auto-compliance enabled.
+                India's #1 IATA travel portal since 1978. Compare live airfares across IndiGo, Air India, Emirates, Qatar Airways, Akasa & 100+ carriers with instant e-ticket confirmation.
               </p>
             </div>
 
             {/* Quick Trust Pill */}
-            <div style={{ 
-              background: 'rgba(0, 0, 0, 0.25)', 
-              backdropFilter: 'blur(10px)', 
-              padding: '10px 16px', 
-              borderRadius: 'var(--radius-lg)', 
+            <div style={{
+              background: 'rgba(0, 0, 0, 0.25)',
+              backdropFilter: 'blur(10px)',
+              padding: '10px 16px',
+              borderRadius: 'var(--radius-lg)',
               border: '1px solid rgba(255, 255, 255, 0.15)',
               display: 'flex',
               alignItems: 'center',
@@ -242,16 +242,16 @@ export const FlightsModule: React.FC = () => {
                 { id: 'senior', label: 'Senior Citizen', sub: 'Up to 15% Off' },
                 { id: 'corporate', label: 'Corporate Special', sub: 'Free Meal & Seats' }
               ].map(f => (
-                <div 
+                <div
                   key={f.id}
                   className={`special-fare-badge ${specialFare === f.id ? 'selected' : ''}`}
                   onClick={() => setSpecialFare(f.id as any)}
                 >
-                  <input 
-                    type="radio" 
-                    name="specialFare" 
-                    checked={specialFare === f.id} 
-                    onChange={() => setSpecialFare(f.id as any)} 
+                  <input
+                    type="radio"
+                    name="specialFare"
+                    checked={specialFare === f.id}
+                    onChange={() => setSpecialFare(f.id as any)}
                     style={{ accentColor: 'var(--brand-accent)', cursor: 'pointer' }}
                   />
                   <span><strong>{f.label}</strong> ({f.sub})</span>
@@ -262,13 +262,13 @@ export const FlightsModule: React.FC = () => {
             {/* Interactive Search Grid */}
             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr auto 1.2fr 1fr 1.1fr auto', gap: '0.75rem', alignItems: 'center' }}>
               {/* FROM */}
-              <div 
-                style={{ 
-                  padding: '0.75rem 1rem', 
-                  borderRadius: 'var(--radius-md)', 
-                  border: '1px solid var(--border-color)', 
-                  background: 'var(--bg-card)', 
-                  cursor: 'pointer' 
+              <div
+                style={{
+                  padding: '0.75rem 1rem',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-card)',
+                  cursor: 'pointer'
                 }}
               >
                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
@@ -278,8 +278,8 @@ export const FlightsModule: React.FC = () => {
                   <span style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--text-heading)' }}>{origin}</span>
                   <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)' }}>{originAirport.city}</span>
                 </div>
-                <select 
-                  value={origin} 
+                <select
+                  value={origin}
                   onChange={(e) => setOrigin(e.target.value)}
                   style={{
                     width: '100%',
@@ -322,13 +322,13 @@ export const FlightsModule: React.FC = () => {
               </button>
 
               {/* TO */}
-              <div 
-                style={{ 
-                  padding: '0.75rem 1rem', 
-                  borderRadius: 'var(--radius-md)', 
-                  border: '1px solid var(--border-color)', 
-                  background: 'var(--bg-card)', 
-                  cursor: 'pointer' 
+              <div
+                style={{
+                  padding: '0.75rem 1rem',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-card)',
+                  cursor: 'pointer'
                 }}
               >
                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
@@ -338,8 +338,8 @@ export const FlightsModule: React.FC = () => {
                   <span style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--text-heading)' }}>{destination}</span>
                   <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)' }}>{destAirport.city}</span>
                 </div>
-                <select 
-                  value={destination} 
+                <select
+                  value={destination}
                   onChange={(e) => setDestination(e.target.value)}
                   style={{
                     width: '100%',
@@ -361,12 +361,12 @@ export const FlightsModule: React.FC = () => {
               </div>
 
               {/* DEPARTURE DATE */}
-              <div 
-                style={{ 
-                  padding: '0.75rem 1rem', 
-                  borderRadius: 'var(--radius-md)', 
-                  border: '1px solid var(--border-color)', 
-                  background: 'var(--bg-card)' 
+              <div
+                style={{
+                  padding: '0.75rem 1rem',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-card)'
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -381,9 +381,9 @@ export const FlightsModule: React.FC = () => {
                 </div>
 
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
-                  <input 
-                    type="date" 
-                    value={departureDate} 
+                  <input
+                    type="date"
+                    value={departureDate}
                     onChange={(e) => { setDepartureDate(e.target.value); setActiveCalendarDate(e.target.value); }}
                     style={{
                       flex: 1,
@@ -399,9 +399,9 @@ export const FlightsModule: React.FC = () => {
                   {tripType === 'roundtrip' && (
                     <>
                       <span style={{ color: 'var(--border-strong)' }}>|</span>
-                      <input 
-                        type="date" 
-                        value={returnDate} 
+                      <input
+                        type="date"
+                        value={returnDate}
                         onChange={(e) => setReturnDate(e.target.value)}
                         style={{
                           flex: 1,
@@ -423,16 +423,16 @@ export const FlightsModule: React.FC = () => {
               </div>
 
               {/* TRAVELLERS & CLASS */}
-              <div 
-                style={{ 
-                  padding: '0.75rem 1rem', 
-                  borderRadius: 'var(--radius-md)', 
-                  border: '1px solid var(--border-color)', 
-                  background: 'var(--bg-card)', 
-                  position: 'relative' 
+              <div
+                style={{
+                  padding: '0.75rem 1rem',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-card)',
+                  position: 'relative'
                 }}
               >
-                <div 
+                <div
                   onClick={() => setIsTravellerOpen(!isTravellerOpen)}
                   style={{ cursor: 'pointer' }}
                 >
@@ -449,7 +449,7 @@ export const FlightsModule: React.FC = () => {
 
                 {/* Popover */}
                 {isTravellerOpen && (
-                  <div 
+                  <div
                     style={{
                       position: 'absolute',
                       top: '110%',
@@ -466,14 +466,14 @@ export const FlightsModule: React.FC = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                       <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>Adults (12+ yrs)</span>
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <button 
-                          className="btn btn-sm btn-secondary" 
+                        <button
+                          className="btn btn-sm btn-secondary"
                           disabled={adults <= 1}
                           onClick={() => setAdults(Math.max(1, adults - 1))}
                           style={{ width: '28px', height: '28px', padding: 0, justifyContent: 'center' }}
                         >-</button>
                         <span style={{ fontWeight: 700, minWidth: '18px', textAlign: 'center' }}>{adults}</span>
-                        <button 
+                        <button
                           className="btn btn-sm btn-secondary"
                           onClick={() => setAdults(adults + 1)}
                           style={{ width: '28px', height: '28px', padding: 0, justifyContent: 'center' }}
@@ -484,14 +484,14 @@ export const FlightsModule: React.FC = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                       <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>Children (2-12 yrs)</span>
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <button 
-                          className="btn btn-sm btn-secondary" 
+                        <button
+                          className="btn btn-sm btn-secondary"
                           disabled={children <= 0}
                           onClick={() => setChildren(Math.max(0, children - 1))}
                           style={{ width: '28px', height: '28px', padding: 0, justifyContent: 'center' }}
                         >-</button>
                         <span style={{ fontWeight: 700, minWidth: '18px', textAlign: 'center' }}>{children}</span>
-                        <button 
+                        <button
                           className="btn btn-sm btn-secondary"
                           onClick={() => setChildren(children + 1)}
                           style={{ width: '28px', height: '28px', padding: 0, justifyContent: 'center' }}
@@ -501,9 +501,9 @@ export const FlightsModule: React.FC = () => {
 
                     <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '10px' }}>
                       <label className="form-label" style={{ fontSize: '0.78rem' }}>Cabin Class</label>
-                      <select 
-                        className="form-select" 
-                        value={cabinClass} 
+                      <select
+                        className="form-select"
+                        value={cabinClass}
                         onChange={(e) => setCabinClass(e.target.value)}
                         style={{ fontSize: '0.85rem' }}
                       >
@@ -514,7 +514,7 @@ export const FlightsModule: React.FC = () => {
                       </select>
                     </div>
 
-                    <button 
+                    <button
                       className="btn btn-sm btn-primary"
                       onClick={() => setIsTravellerOpen(false)}
                       style={{ width: '100%', marginTop: '12px', justifyContent: 'center' }}
@@ -526,7 +526,7 @@ export const FlightsModule: React.FC = () => {
               </div>
 
               {/* SEARCH BUTTON */}
-              <button 
+              <button
                 className="travel-btn-primary"
                 onClick={() => {
                   const el = document.getElementById('flight-results-section');
@@ -555,7 +555,7 @@ export const FlightsModule: React.FC = () => {
 
         <div className="travel-fare-calendar">
           {calendarFares.map((f) => (
-            <div 
+            <div
               key={f.dateStr}
               className={`fare-date-chip ${f.isLowest ? 'lowest' : ''} ${activeCalendarDate === f.dateStr ? 'active' : ''}`}
               onClick={() => {
@@ -663,9 +663,9 @@ export const FlightsModule: React.FC = () => {
               { val: 'onestop', label: '1 Stop Connect' }
             ].map(s => (
               <label key={s.val} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', cursor: 'pointer', fontSize: '0.86rem', color: 'var(--text-main)' }}>
-                <input 
-                  type="radio" 
-                  name="stops" 
+                <input
+                  type="radio"
+                  name="stops"
                   checked={filterStops === s.val}
                   onChange={() => setFilterStops(s.val as any)}
                   style={{ accentColor: 'var(--brand-accent)' }}
@@ -693,10 +693,10 @@ export const FlightsModule: React.FC = () => {
           {/* Refundable */}
           <div style={{ marginBottom: '1.25rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.86rem', color: 'var(--text-main)' }}>
-              <input 
-                type="checkbox" 
-                checked={filterRefundable} 
-                onChange={(e) => setFilterRefundable(e.target.checked)} 
+              <input
+                type="checkbox"
+                checked={filterRefundable}
+                onChange={(e) => setFilterRefundable(e.target.checked)}
                 style={{ accentColor: 'var(--brand-accent)' }}
               />
               <span>Refundable Fares Only</span>
@@ -736,9 +736,9 @@ export const FlightsModule: React.FC = () => {
           {filteredFlights.map((flight) => {
             const adjustedPrice = getMarkupAdjustedPrice(flight.basePriceUSD, 'flights');
             return (
-              <FlightResultCard 
-                key={flight.id} 
-                flight={flight} 
+              <FlightResultCard
+                key={flight.id}
+                flight={flight}
                 adjustedPrice={adjustedPrice}
                 formatPrice={formatPrice}
                 onBook={() => openCheckout(flight, 'flight')}
@@ -769,7 +769,7 @@ export const FlightsModule: React.FC = () => {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
           {popularRoutes.map((route) => (
-            <div 
+            <div
               key={`${route.from}-${route.to}`}
               className="card"
               style={{
@@ -859,7 +859,7 @@ interface FlightResultCardProps {
 
 const FlightResultCard: React.FC<FlightResultCardProps> = ({ flight, adjustedPrice, formatPrice, onBook }) => {
   return (
-    <div 
+    <div
       className="card"
       style={{
         padding: '1.25rem 1.5rem',
@@ -870,9 +870,9 @@ const FlightResultCard: React.FC<FlightResultCardProps> = ({ flight, adjustedPri
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.25rem' }}>
         {/* Carrier Info */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '160px' }}>
-          <img 
-            src={flight.airlineLogo} 
-            alt={flight.airline} 
+          <img
+            src={flight.airlineLogo}
+            alt={flight.airline}
             style={{ width: '40px', height: '40px', borderRadius: '8px', objectFit: 'cover' }}
           />
           <div>
@@ -901,10 +901,10 @@ const FlightResultCard: React.FC<FlightResultCardProps> = ({ flight, adjustedPri
             <div style={{ width: '100%', height: '2px', background: 'var(--border-strong)', position: 'relative', margin: '6px 0' }}>
               <Plane size={14} color="var(--brand-accent)" style={{ position: 'absolute', top: '-6px', left: 'calc(50% - 7px)' }} />
             </div>
-            <span style={{ 
-              fontSize: '0.72rem', 
-              color: flight.stops === 0 ? 'var(--color-success)' : 'var(--color-warning)', 
-              fontWeight: 700 
+            <span style={{
+              fontSize: '0.72rem',
+              color: flight.stops === 0 ? 'var(--color-success)' : 'var(--color-warning)',
+              fontWeight: 700
             }}>
               {flight.stops === 0 ? 'Direct Non-Stop' : `${flight.stops} Stop`}
             </span>
@@ -929,13 +929,13 @@ const FlightResultCard: React.FC<FlightResultCardProps> = ({ flight, adjustedPri
           <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
             per adult • all taxes incl.
           </div>
-          <button 
+          <button
             className="btn btn-primary"
             onClick={onBook}
-            style={{ 
-              background: 'var(--brand-btn-gradient)', 
-              padding: '0.55rem 1.4rem', 
-              fontSize: '0.88rem', 
+            style={{
+              background: 'var(--brand-btn-gradient)',
+              padding: '0.55rem 1.4rem',
+              fontSize: '0.88rem',
               fontWeight: 800,
               width: '100%',
               justifyContent: 'center',
@@ -948,12 +948,12 @@ const FlightResultCard: React.FC<FlightResultCardProps> = ({ flight, adjustedPri
       </div>
 
       {/* Perks, Baggage & Corporate Policy Strip */}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        marginTop: '1rem', 
-        paddingTop: '0.75rem', 
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: '1rem',
+        paddingTop: '0.75rem',
         borderTop: '1px solid var(--border-color)',
         flexWrap: 'wrap',
         gap: '8px',
@@ -974,17 +974,10 @@ const FlightResultCard: React.FC<FlightResultCardProps> = ({ flight, adjustedPri
         </div>
 
         <div>
-          {flight.inPolicy ? (
-            <span className="badge badge-emerald" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              <CheckCircle2 size={12} />
-              <span>In Policy (Auto-Approved)</span>
-            </span>
-          ) : (
-            <span className="badge badge-warning" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              <AlertTriangle size={12} />
-              <span>Policy Limit Exceeded</span>
-            </span>
-          )}
+          <span className="badge badge-emerald" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            <CheckCircle2 size={12} />
+            <span>Akbar Verified Fare</span>
+          </span>
         </div>
       </div>
     </div>

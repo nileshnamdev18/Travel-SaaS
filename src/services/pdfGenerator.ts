@@ -333,7 +333,7 @@ export class PdfEngine {
 
     y += 15;
     doc.setFont('helvetica', 'normal');
-    invoice.items.forEach(item => {
+    invoice.items.forEach((item: any) => {
       doc.text(item.description, 18, y);
       doc.text(`${item.quantity}`, 122, y);
       doc.text(`$${item.unitPrice.toFixed(2)}`, 142, y);

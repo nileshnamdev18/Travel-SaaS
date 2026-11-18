@@ -68,6 +68,27 @@
   --brand-accent: #fa3a3a;
   --brand-accent-hover: #e02828;
   --brand-accent-light: #fef2f2;
+
+  /* Thomas Cook Official Brand Palette (thomascook.in/holidays) */
+  --font-tc-primary: 'Poppins', var(--font-primary);
+  --font-tc-editorial: 'Playfair Display', serif;
+  --tc-navy: #0F4CA4;
+  --tc-navy-dark: #0A3778;
+  --tc-navy-light: #F5FAFF;
+  --tc-navy-subtle: #EFF8FF;
+  --tc-yellow: #FEE900;
+  --tc-yellow-dark: #D8C600;
+  --tc-orange: #FF7700;
+  --tc-orange-tint: #FFF1E6;
+  --tc-green: #198754;
+  --tc-green-tint: rgba(25, 135, 84, 0.1);
+  --tc-gray-25: #F8F9FA;
+  --tc-gray-50: #F6F7F9;
+  --tc-gray-100: #EDEEF1;
+  --tc-gray-200: #D7DAE0;
+  --tc-gray-500: #667085;
+  --tc-gray-600: #565E73;
+  --tc-gray-950: #24262D;
   --brand-amber: #f59e0b;
   --notice-bg: #fff8e6;
   --notice-border: #fde68a;

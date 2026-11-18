@@ -1,272 +1,1641 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { INITIAL_HOLIDAYS } from '../../data/mockData';
-import { HolidayPackage, ActivityOption } from '../../types';
-import { 
-  Palmtree, 
-  Repeat, 
-  Check, 
-  Clock, 
-  Calendar, 
-  Sparkles, 
-  Download, 
-  Share2, 
-  MapPin, 
+import { HolidayPackage, ActivityOption, HolidayDestinationType, HolidayTheme } from '../../types';
+import {
+  Search,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Share2,
+  Star,
+  MapPin,
+  Calendar,
+  Users,
   Building2,
-  DollarSign
+  Clock,
+  Sparkles,
+  Plane,
+  Camera,
+  Utensils,
+  UserCheck,
+  PhoneCall,
+  Check,
+  X,
+  Repeat,
+  Compass,
+  ArrowRight,
+  ShieldCheck,
+  MessageSquare,
+  Award,
+  Layers,
+  HelpCircle,
+  Plus,
+  Minus
 } from 'lucide-react';
-import { PdfEngine } from '../../services/pdfGenerator';
 import confetti from 'canvas-confetti';
+import jsPDF from 'jspdf';
 
 export const HolidaysModule: React.FC = () => {
-  const { formatPrice, openModal } = useApp();
+  const {
+    formatPrice,
+    holidayPackages,
+    adminHolidayConfig,
+    createHolidayBooking,
+    holidayBookings
+  } = useApp();
 
-  const [packages, setPackages] = useState<HolidayPackage[]>(INITIAL_HOLIDAYS);
-  const [selectedPackage, setSelectedPackage] = useState<HolidayPackage>(INITIAL_HOLIDAYS[0]);
+  // Navigation State
+  const [selectedPackage, setSelectedPackage] = useState<HolidayPackage | null>(null);
+  const [activeTab, setActiveTab] = useState<'packages' | 'tracker'>('packages');
+
+  // Search & Filters State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchPopupOpen, setIsSearchPopupOpen] = useState(false);
+  const [destTypeFilter, setDestTypeFilter] = useState<'all' | 'domestic' | 'international'>('all');
+  const [tourCategoryFilter, setTourCategoryFilter] = useState<string>('all');
+  const [themeFilter, setThemeFilter] = useState<HolidayTheme>('all');
+  const [selectedDepartureCity, setSelectedDepartureCity] = useState('Mumbai');
+  const [sortBy, setSortBy] = useState<'recommended' | 'price_asc' | 'price_desc' | 'duration'>('recommended');
+
+  // PDP Active Section & Active Day in Timeline
+  const [pdpActiveTab, setPdpActiveTab] = useState<'itinerary' | 'inclusions' | 'summary' | 'highlights'>('itinerary');
+  const [pdpActiveDay, setPdpActiveDay] = useState<number>(1);
   const [swappingDay, setSwappingDay] = useState<number | null>(null);
 
-  // Swap activity on a specific day
+  // PDP Slide-Over Booking Calculator Drawer
+  const [isCalculatorDrawerOpen, setIsCalculatorDrawerOpen] = useState(false);
+  const [drawerDepartureCity, setDrawerDepartureCity] = useState('Mumbai');
+  const [drawerTravelDate, setDrawerTravelDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 21);
+    return d.toISOString().split('T')[0];
+  });
+  const [drawerAdults, setDrawerAdults] = useState(2);
+  const [drawerChildren, setDrawerChildren] = useState(0);
+  const [drawerHotelTier, setDrawerHotelTier] = useState<'Comfort' | 'Superior' | 'Luxury 5-Star'>('Superior');
+
+  // PDP "Want us to call you?" Quick Lead State
+  const [callbackPhone, setCallbackPhone] = useState('');
+  const [callbackEmail, setCallbackEmail] = useState('');
+  const [callbackConsent, setCallbackConsent] = useState(true);
+  const [callbackSuccess, setCallbackSuccess] = useState(false);
+
+  // Booking Confirmation State
+  const [bookingSuccessRef, setBookingSuccessRef] = useState<string | null>(null);
+
+  // Tracking lookup state
+  const [trackRefInput, setTrackRefInput] = useState('');
+  const [trackLookupResult, setTrackLookupResult] = useState<any | null | 'not_found'>(null);
+
+  // Quick Popular Search Tiles
+  const popularInternational = [
+    { name: 'Europe', img: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=300&q=80' },
+    { name: 'Dubai', img: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=300&q=80' },
+    { name: 'Vietnam', img: 'https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=300&q=80' },
+    { name: 'Thailand', img: 'https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?auto=format&fit=crop&w=300&q=80' },
+  ];
+
+  const popularDomestic = [
+    { name: 'Kashmir', img: 'https://images.unsplash.com/photo-1595815771614-ade9d652a65d?auto=format&fit=crop&w=300&q=80' },
+    { name: 'Kerala', img: 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?auto=format&fit=crop&w=300&q=80' },
+    { name: 'Ladakh', img: 'https://images.unsplash.com/photo-1581793745862-99fde7fa73d2?auto=format&fit=crop&w=300&q=80' },
+    { name: 'Himachal', img: 'https://images.unsplash.com/photo-1582650625119-3a31f841839d?auto=format&fit=crop&w=300&q=80' },
+  ];
+
+  // Price Calculation Helpers
+  const getPackageSellingPrice = (pkg: HolidayPackage) => {
+    const markup = adminHolidayConfig.partnerMarkupPercent || 12;
+    return Math.round(pkg.basePrice * (1 + markup / 100));
+  };
+
+  const getStrikethroughPrice = (sellingPrice: number, discountPct: number = 8) => {
+    return Math.round(sellingPrice * (1 + discountPct / 100));
+  };
+
+  const calculateDrawerTotalPrice = (pkg: HolidayPackage) => {
+    const baseSelling = getPackageSellingPrice(pkg);
+    const tierMultiplier = drawerHotelTier === 'Comfort' ? 0.9 : drawerHotelTier === 'Luxury 5-Star' ? 1.35 : 1.0;
+    const adultCost = Math.round(baseSelling * tierMultiplier) * drawerAdults;
+    const childCost = Math.round(baseSelling * tierMultiplier * 0.6) * drawerChildren;
+    let total = adultCost + childCost;
+    if (drawerAdults >= 4 && adminHolidayConfig.groupDiscountPercent > 0) {
+      total = Math.round(total * (1 - adminHolidayConfig.groupDiscountPercent / 100));
+    }
+    return total;
+  };
+
+  // Filter & Sort Logic
+  const filteredPackages = holidayPackages
+    .filter(pkg => {
+      const matchSearch =
+        pkg.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        pkg.destination.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (pkg.region && pkg.region.toLowerCase().includes(searchQuery.toLowerCase()));
+
+      const matchDestType = destTypeFilter === 'all' || pkg.destinationType === destTypeFilter;
+      const matchCategory =
+        tourCategoryFilter === 'all' ||
+        (tourCategoryFilter === 'group' && pkg.category === 'Group Tour') ||
+        (tourCategoryFilter === 'customised' && pkg.category === 'Customized') ||
+        (tourCategoryFilter === 'recommended' && pkg.isBestSeller) ||
+        (tourCategoryFilter === 'trending' && pkg.isTrending);
+
+      const matchTheme = themeFilter === 'all' || pkg.theme === themeFilter;
+
+      return matchSearch && matchDestType && matchCategory && matchTheme;
+    })
+    .sort((a, b) => {
+      const priceA = getPackageSellingPrice(a);
+      const priceB = getPackageSellingPrice(b);
+      if (sortBy === 'price_asc') return priceA - priceB;
+      if (sortBy === 'price_desc') return priceB - priceA;
+      if (sortBy === 'duration') return a.durationDays - b.durationDays;
+      return (b.isBestSeller ? 1 : 0) - (a.isBestSeller ? 1 : 0);
+    });
+
+  // Handle Activity Swap
   const handleSwapActivity = (dayNumber: number, newActivity: ActivityOption) => {
-    const updatedDays = selectedPackage.days.map((day) => {
+    if (!selectedPackage) return;
+    const updatedDays = selectedPackage.days.map(day => {
       if (day.dayNumber === dayNumber) {
-        return {
-          ...day,
-          currentActivity: newActivity
-        };
+        return { ...day, currentActivity: newActivity };
       }
       return day;
     });
 
-    // Recalculate package price with deltas
-    const newPrice = selectedPackage.basePrice + newActivity.priceDelta;
-    const updatedPackage: HolidayPackage = {
+    const newBasePrice = selectedPackage.basePrice + newActivity.priceDelta;
+    setSelectedPackage({
       ...selectedPackage,
       days: updatedDays,
-      basePrice: newPrice
-    };
-
-    setSelectedPackage(updatedPackage);
-    setPackages(prev => prev.map(p => p.id === updatedPackage.id ? updatedPackage : p));
+      basePrice: newBasePrice
+    });
     setSwappingDay(null);
-    confetti({ particleCount: 40, spread: 50, origin: { y: 0.6 } });
+    confetti({ particleCount: 40, spread: 60, origin: { y: 0.6 } });
   };
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-      {/* Hero Banner */}
-      <div 
-        style={{
-          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(13, 148, 136, 0.8) 100%)',
-          borderRadius: 'var(--radius-xl)',
-          padding: '2.5rem',
-          border: '1px solid rgba(42, 157, 143, 0.4)',
-          boxShadow: 'var(--shadow-lg)'
-        }}
-      >
-        <div style={{ maxWidth: '800px' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(255, 255, 255, 0.15)', color: '#ffffff', padding: '4px 12px', borderRadius: 'var(--radius-full)', fontSize: '0.8rem', fontWeight: 700, marginBottom: '1rem' }}>
-            <Palmtree size={14} /> DUAL-PATH HOLIDAYS & MODULAR SWAP ENGINE
+  // Handle Instant Booking from Drawer
+  const handleCompleteDrawerBooking = () => {
+    if (!selectedPackage) return;
+    const totalAmount = calculateDrawerTotalPrice(selectedPackage);
+    const wholesale = Math.round(selectedPackage.wholesaleCost * drawerAdults);
+    const markupAmount = Math.max(0, totalAmount - wholesale);
+
+    const newBooking = createHolidayBooking({
+      packageId: selectedPackage.id,
+      packageTitle: selectedPackage.title,
+      destination: selectedPackage.destination,
+      destinationType: selectedPackage.destinationType || 'domestic',
+      customerName: 'Rohit Sharma (Direct Traveler)',
+      customerEmail: callbackEmail || 'customer@gmail.com',
+      customerPhone: callbackPhone || '+91 98201 44521',
+      departureCity: drawerDepartureCity,
+      travelDate: drawerTravelDate,
+      paxAdults: drawerAdults,
+      paxChildren: drawerChildren,
+      selectedHotelTier: drawerHotelTier,
+      totalAmountUSD: totalAmount,
+      wholesaleCostUSD: wholesale,
+      markupAmountUSD: markupAmount,
+      status: 'confirmed',
+      customNotes: `Confirmed via Thomas Cook Online Desk. Tier: ${drawerHotelTier}, Departure Hub: Ex-${drawerDepartureCity}`
+    });
+
+    setBookingSuccessRef(newBooking.bookingReference);
+    setIsCalculatorDrawerOpen(false);
+    confetti({ particleCount: 90, spread: 80, origin: { y: 0.5 } });
+  };
+
+  // Handle Quick Callback Request
+  const handleRequestCallback = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!callbackPhone) return;
+    setCallbackSuccess(true);
+    setTimeout(() => setCallbackSuccess(false), 4000);
+    confetti({ particleCount: 30, spread: 45, origin: { y: 0.7 } });
+  };
+
+  // WhatsApp Inquiry Generator
+  const handleWhatsAppInquiry = () => {
+    if (!selectedPackage) return;
+    const sellingPrice = getPackageSellingPrice(selectedPackage);
+    const text = encodeURIComponent(
+      `Hello Thomas Cook Holidays! I am inquiring about:\n` +
+      `Package: ${selectedPackage.title}\n` +
+      `Destination: ${selectedPackage.destination}\n` +
+      `Duration: ${selectedPackage.durationDays}D / ${selectedPackage.durationNights || selectedPackage.durationDays - 1}N\n` +
+      `Starting Price: USD ${sellingPrice} per adult\n` +
+      `Please connect me with a holiday specialist.`
+    );
+    const phone = adminHolidayConfig.whatsappInquiryNumber.replace(/[^0-9]/g, '');
+    window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+  };
+
+  // Official Itinerary PDF Brochure Generator (jsPDF)
+  const handleDownloadItineraryPDF = () => {
+    if (!selectedPackage) return;
+    const doc = new jsPDF();
+    const sellingPrice = getPackageSellingPrice(selectedPackage);
+
+    // Header banner with Thomas Cook signature navy (#0F4CA4) & yellow strip
+    doc.setFillColor(15, 76, 164);
+    doc.rect(0, 0, 210, 38, 'F');
+    doc.setFillColor(254, 233, 0);
+    doc.rect(0, 38, 210, 3, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('THOMAS COOK INDIA — OFFICIAL TOUR BROCHURE', 14, 18);
+
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.text(
+      `India's Most Trusted Travel Brand Since 1881 | Toll-Free: ${adminHolidayConfig.supportHelpline} | Departure Hub: Ex-${selectedDepartureCity}`,
+      14,
+      28
+    );
+
+    // Title & Specs
+    doc.setTextColor(36, 38, 45);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text(selectedPackage.title, 14, 52);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(86, 94, 115);
+    doc.text(
+      `Destination: ${selectedPackage.destination} | Duration: ${selectedPackage.durationDays} Days / ${selectedPackage.durationNights || selectedPackage.durationDays - 1} Nights | Starting from USD ${sellingPrice} per adult`,
+      14,
+      60
+    );
+
+    doc.setDrawColor(215, 218, 224);
+    doc.line(14, 66, 196, 66);
+
+    // Highlights
+    doc.setTextColor(15, 76, 164);
+    doc.setFontSize(10.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text('PACKAGE HIGHLIGHTS', 14, 75);
+
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(36, 38, 45);
+    let yPos = 82;
+    selectedPackage.highlights.forEach(h => {
+      doc.text(`• ${h}`, 16, yPos);
+      yPos += 5.5;
+    });
+
+    // Day-by-day Itinerary
+    yPos += 4;
+    doc.setTextColor(15, 76, 164);
+    doc.setFontSize(10.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text('DAY-BY-DAY CURATED ITINERARY', 14, yPos);
+    yPos += 7;
+
+    selectedPackage.days.forEach(day => {
+      if (yPos > 260) {
+        doc.addPage();
+        yPos = 20;
+      }
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 76, 164);
+      doc.text(`Day ${day.dayNumber}: ${day.dayTitle} (${day.destination})`, 14, yPos);
+      yPos += 5;
+
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(86, 94, 115);
+      doc.text(`Activity: ${day.currentActivity.title} (${day.currentActivity.duration})`, 18, yPos);
+      yPos += 4.5;
+      doc.text(`Stay: ${day.hotelName} [${day.hotelTier}]`, 18, yPos);
+      yPos += 6.5;
+    });
+
+    // Inclusions
+    if (yPos > 240) {
+      doc.addPage();
+      yPos = 20;
+    }
+    doc.setTextColor(15, 76, 164);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('THOMAS COOK INCLUSIONS & AMENITIES', 14, yPos);
+    yPos += 6;
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(36, 38, 45);
+    const incs = selectedPackage.inclusions || [
+      'Accommodation in verified quality hotels',
+      'Daily breakfast & select dinners as per itinerary',
+      'All transfers & sightseeing in comfortable AC vehicles',
+      'Dedicated Thomas Cook Tour Manager & local guides'
+    ];
+    incs.forEach(inc => {
+      doc.text(`✓ ${inc}`, 16, yPos);
+      yPos += 5;
+    });
+
+    // Footer
+    doc.setFontSize(7.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text('Official Thomas Cook India Tour Package. Itinerary subject to local weather and flight schedules.', 14, 285);
+
+    doc.save(`ThomasCook_Itinerary_${selectedPackage.id}.pdf`);
+  };
+
+  // Lookup existing booking
+  const handleTrackLookup = () => {
+    const found = holidayBookings.find(
+      b => b.bookingReference.toLowerCase() === trackRefInput.toLowerCase() || b.id.toLowerCase() === trackRefInput.toLowerCase()
+    );
+    setTrackLookupResult(found || 'not_found');
+  };
+
+  // ===========================================================================
+  // RENDER VIEW: DETAILED PACKAGE PAGE (PDP)
+  // ===========================================================================
+  if (selectedPackage) {
+    const sellingPrice = getPackageSellingPrice(selectedPackage);
+    const strikethroughPrice = getStrikethroughPrice(sellingPrice, selectedPackage.discountPercent || 8);
+    const drawerTotal = calculateDrawerTotalPrice(selectedPackage);
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', fontFamily: 'var(--font-tc-primary)' }}>
+        
+        {/* Breadcrumb Navigation */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, fontSize: '0.82rem', color: '#565E73' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button
+              onClick={() => {
+                setSelectedPackage(null);
+                setBookingSuccessRef(null);
+              }}
+              style={{ background: 'none', border: 'none', color: '#0F4CA4', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: 0 }}
+            >
+              <ChevronLeft size={16} /> Holidays
+            </button>
+            <span>/</span>
+            <span>{selectedPackage.destinationType === 'domestic' ? 'India Tour Packages' : 'International Packages'}</span>
+            <span>/</span>
+            <span style={{ color: '#24262D', fontWeight: 600 }}>{selectedPackage.title}</span>
           </div>
 
-          <h1 style={{ fontSize: '2.4rem', fontWeight: 800, marginBottom: '0.75rem', color: '#ffffff' }}>
-            Curated Holidays & Real-Time Itinerary Customizer
-          </h1>
-
-          <p style={{ fontSize: '1rem', color: '#e2e8f0', lineHeight: 1.6 }}>
-            Swap excursions, upgrade mountain gondolas or helicopter tours, and watch package pricing recalculate in real-time.
-          </p>
-        </div>
-      </div>
-
-      {/* Package Selector */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
-        {packages.map((pkg) => {
-          const isSelected = selectedPackage.id === pkg.id;
-          return (
-            <div 
-              key={pkg.id}
-              onClick={() => setSelectedPackage(pkg)}
-              className={`glass-card ${isSelected ? 'glass-card-teal' : ''}`}
-              style={{
-                cursor: 'pointer',
-                borderColor: isSelected ? 'var(--visa-teal)' : undefined,
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between'
-              }}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              className="btn btn-sm btn-secondary"
+              style={{ borderRadius: 100, fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: 6 }}
+              onClick={handleDownloadItineraryPDF}
             >
-              <div>
-                <div style={{ position: 'relative', height: '180px', borderRadius: 'var(--radius-md)', overflow: 'hidden', marginBottom: '1rem' }}>
-                  <img src={pkg.heroImage} alt={pkg.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  <div style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', color: '#ffffff' }}>
-                    {pkg.destination} • {pkg.durationDays} Days
-                  </div>
-                </div>
+              <Download size={13} /> Download Brochure PDF
+            </button>
+            <button
+              className="btn btn-sm btn-secondary"
+              style={{ borderRadius: 100, fontSize: '0.78rem', color: '#198754', display: 'flex', alignItems: 'center', gap: 6 }}
+              onClick={handleWhatsAppInquiry}
+            >
+              <MessageSquare size={13} /> WhatsApp Share
+            </button>
+          </div>
+        </div>
 
-                <h3 style={{ fontSize: '1.2rem', marginBottom: '0.5rem' }}>{pkg.title}</h3>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '1rem' }}>
-                  {pkg.highlights.map((h, i) => (
-                    <span key={i} className="badge badge-teal" style={{ fontSize: '0.65rem' }}>{h}</span>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ borderTop: '1px solid var(--border-dark)', paddingTop: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Starting from</div>
-                  <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--visa-teal)' }}>
-                    {formatPrice(pkg.basePrice)}
-                  </div>
-                </div>
-
-                <button 
-                  className={`btn btn-sm ${isSelected ? 'btn-primary-teal' : 'btn-secondary'}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedPackage(pkg);
-                  }}
-                >
-                  {isSelected ? 'Customizing Itinerary' : 'Select Package'}
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Day-by-Day Modular Swap & Upgrade Builder */}
-      {selectedPackage && (
-        <div className="glass-card" style={{ borderLeft: '4px solid var(--visa-teal)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+        {/* Success Confirmation Banner */}
+        {bookingSuccessRef && (
+          <div
+            style={{
+              background: 'linear-gradient(135deg, #0F4CA4 0%, #0A3778 100%)',
+              border: '2px solid #FEE900',
+              borderRadius: 16,
+              padding: '1.75rem',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '1rem',
+              boxShadow: '0 10px 25px rgba(15, 76, 164, 0.25)'
+            }}
+          >
             <div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--visa-teal)', fontWeight: 700, textTransform: 'uppercase' }}>
-                Modular Day-by-Day "Swap / Upgrade" Engine
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#FEE900', color: '#0F4CA4', padding: '3px 12px', borderRadius: 20, fontSize: '0.75rem', fontWeight: 800, marginBottom: 6 }}>
+                <CheckCircle2 size={14} /> THOMAS COOK HOLIDAY CONFIRMED
               </div>
-              <h3 style={{ fontSize: '1.4rem' }}>{selectedPackage.title}</h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                Click "Swap Activity" on any day to modify excursions with instant price recalculation.
+              <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800 }}>
+                Booking Reference: <span style={{ color: '#FEE900' }}>{bookingSuccessRef}</span>
+              </h3>
+              <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#E2E8F0' }}>
+                Your package reservation has been confirmed. Our tour specialist will contact you with your flight schedule & custom vouchers.
               </p>
             </div>
+            <button
+              className="btn btn-sm"
+              style={{ background: '#FEE900', color: '#0F4CA4', fontWeight: 800, borderRadius: 100, border: 'none', padding: '0.5rem 1.25rem' }}
+              onClick={handleDownloadItineraryPDF}
+            >
+              <Download size={14} /> Download Voucher PDF
+            </button>
+          </div>
+        )}
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <div style={{ textAlign: 'right' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Live Calculated Price:</span>
-                <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--visa-teal)' }}>
-                  {formatPrice(selectedPackage.basePrice)}
+        {/* Top Gallery & Quick Overview Section */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', alignItems: 'stretch' }}>
+          
+          {/* Multi-Photo Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 8, height: 380, borderRadius: 16, overflow: 'hidden' }}>
+            <div style={{ height: '100%', position: 'relative' }}>
+              <img
+                src={selectedPackage.heroImage}
+                alt={selectedPackage.title}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+              <div style={{ position: 'absolute', top: 12, left: 12, display: 'flex', gap: 6 }}>
+                <span style={{ background: '#0F4CA4', color: '#fff', fontSize: '0.72rem', fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>
+                  RECOMMENDED
+                </span>
+                <span style={{ background: '#FF7700', color: '#fff', fontSize: '0.72rem', fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>
+                  {selectedPackage.destinationType === 'domestic' ? '🇮🇳 India & Around' : '🌍 International'}
+                </span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, height: '100%' }}>
+              {(selectedPackage.galleryImages || [
+                'https://images.unsplash.com/photo-1598091383021-15ddea10925d?auto=format&fit=crop&w=400&q=80',
+                'https://images.unsplash.com/photo-1582650625119-3a31f841839d?auto=format&fit=crop&w=400&q=80'
+              ]).slice(0, 2).map((img, i) => (
+                <div key={i} style={{ flex: 1, overflow: 'hidden' }}>
+                  <img src={img} alt="Gallery" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Quick Header Information Card */}
+          <div className="card" style={{ padding: '1.75rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderRadius: 16, border: '0.8px solid #EDEEF1' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ background: '#EFF8FF', color: '#0F4CA4', fontWeight: 800, fontSize: '0.8rem', padding: '3px 10px', borderRadius: 20 }}>
+                  {selectedPackage.durationDays}N / {selectedPackage.durationDays + 1}D
+                </span>
+                <span style={{ background: '#F6F7F9', color: '#565E73', fontWeight: 600, fontSize: '0.75rem', padding: '3px 10px', borderRadius: 20 }}>
+                  {selectedPackage.category}
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: '0.8rem', color: '#FF7700', fontWeight: 700 }}>
+                  <Star size={14} fill="#FF7700" color="#FF7700" /> 4.2 (230 Reviews)
+                </span>
               </div>
 
-              <button 
-                className="btn btn-primary-teal"
-                onClick={() => PdfEngine.generateItineraryVoucher(selectedPackage, 2, 'Ahmed Al-Mansoor')}
+              <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#24262D', margin: '0 0 0.75rem', lineHeight: 1.3 }}>
+                {selectedPackage.title}
+              </h1>
+
+              {/* Route chips */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: '1.25rem' }}>
+                {selectedPackage.days.map((d, i) => (
+                  <span key={i} style={{ background: '#F6F7F9', color: '#24262D', fontSize: '0.75rem', fontWeight: 600, padding: '3px 8px', borderRadius: 6 }}>
+                    1N {d.destination}
+                  </span>
+                ))}
+              </div>
+
+              {/* 5 Inclusions Icons */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, textAlign: 'center', borderTop: '1px solid #EDEEF1', borderBottom: '1px solid #EDEEF1', padding: '1rem 0', marginBottom: '1.25rem' }}>
+                {[
+                  { icon: <Plane size={18} color="#0F4CA4" />, label: 'Flights' },
+                  { icon: <Building2 size={18} color="#0F4CA4" />, label: 'Hotels' },
+                  { icon: <Camera size={18} color="#0F4CA4" />, label: 'Sightseeing' },
+                  { icon: <Utensils size={18} color="#0F4CA4" />, label: 'Meals' },
+                  { icon: <UserCheck size={18} color="#0F4CA4" />, label: 'Tour Guide' }
+                ].map((item, idx) => (
+                  <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                    {item.icon}
+                    <span style={{ fontSize: '0.72rem', color: '#565E73', fontWeight: 600 }}>{item.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Price & Primary CTA */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                  <span style={{ fontSize: '0.85rem', color: '#667085', textDecoration: 'line-through' }}>
+                    {formatPrice(strikethroughPrice)}
+                  </span>
+                  <span style={{ background: 'rgba(25, 135, 84, 0.1)', color: '#198754', fontWeight: 800, fontSize: '0.75rem', padding: '2px 6px', borderRadius: 4 }}>
+                    {selectedPackage.discountPercent || 8}% OFF
+                  </span>
+                </div>
+                <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#0F4CA4', lineHeight: 1.1 }}>
+                  {formatPrice(sellingPrice)}
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#667085' }}>Starting price per adult</div>
+              </div>
+
+              <button
+                className="btn btn-primary"
+                style={{ background: '#0F4CA4', borderColor: '#0F4CA4', borderRadius: 100, padding: '0.75rem 1.75rem', fontWeight: 800, fontSize: '0.9rem' }}
+                onClick={() => setIsCalculatorDrawerOpen(true)}
               >
-                <Download size={16} /> Download Itinerary PDF
+                Calculate Price & Book
               </button>
             </div>
           </div>
 
-          {/* Days List */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            {selectedPackage.days.map((day) => (
-              <div 
-                key={day.dayNumber}
-                style={{
-                  background: 'rgba(255,255,255,0.02)',
-                  border: '1px solid var(--border-dark)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '1.25rem'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span className="badge badge-teal">Day {day.dayNumber}</span>
-                    <strong style={{ fontSize: '1.05rem', color: '#ffffff' }}>{day.dayTitle}</strong>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>({day.destination})</span>
-                  </div>
+        </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    <Building2 size={14} color="var(--visa-teal)" />
-                    <span>Lodging: <strong>{day.hotelName}</strong> ({day.hotelTier})</span>
-                  </div>
+        {/* Sticky Anchor Navigation Bar */}
+        <div style={{ background: '#FFFFFF', border: '1px solid #EDEEF1', borderRadius: 100, padding: '0.4rem 0.75rem', display: 'flex', gap: 8, alignItems: 'center', overflowX: 'auto' }}>
+          {[
+            { key: 'itinerary', label: 'Itinerary' },
+            { key: 'inclusions', label: 'Inclusions & Exclusions' },
+            { key: 'highlights', label: 'Highlights' },
+            { key: 'summary', label: 'Overview & Assurance' }
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setPdpActiveTab(tab.key as any)}
+              style={{
+                background: pdpActiveTab === tab.key ? '#0F4CA4' : 'transparent',
+                color: pdpActiveTab === tab.key ? '#FFFFFF' : '#565E73',
+                border: 'none',
+                borderRadius: 100,
+                padding: '0.45rem 1.25rem',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* PDP Main Content & Sticky Booking Sidebar */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '2rem', alignItems: 'flex-start' }}>
+          
+          {/* LEFT COLUMN: Itinerary / Tabs */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+            
+            {/* ITINERARY TAB (Dual-Rail Timeline) */}
+            {pdpActiveTab === 'itinerary' && (
+              <div>
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <h3 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#24262D', margin: '0 0 4px' }}>
+                    Day-by-Day Curated Itinerary
+                  </h3>
+                  <p style={{ fontSize: '0.82rem', color: '#565E73', margin: 0 }}>
+                    Modular daily breakdown. You can swap activities to upgrade your holiday experience.
+                  </p>
                 </div>
 
-                {/* Current Active Activity */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(42, 157, 143, 0.08)', border: '1px solid rgba(42, 157, 143, 0.3)', borderRadius: 'var(--radius-md)', padding: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <img 
-                      src={day.currentActivity.image} 
-                      alt={day.currentActivity.title} 
-                      style={{ width: '80px', height: '60px', objectFit: 'cover', borderRadius: '6px' }} 
-                    />
-                    <div>
-                      <div style={{ fontWeight: 700, color: '#ffffff', fontSize: '0.95rem' }}>
-                        {day.currentActivity.title}
+                {/* Day Buttons Horizontal Selector */}
+                <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 10, marginBottom: '1rem' }}>
+                  {selectedPackage.days.map(d => (
+                    <button
+                      key={d.dayNumber}
+                      onClick={() => setPdpActiveDay(d.dayNumber)}
+                      style={{
+                        padding: '0.45rem 1rem',
+                        borderRadius: 100,
+                        border: pdpActiveDay === d.dayNumber ? '2px solid #0F4CA4' : '1px solid #D7DAE0',
+                        background: pdpActiveDay === d.dayNumber ? '#EFF8FF' : '#FFFFFF',
+                        color: pdpActiveDay === d.dayNumber ? '#0F4CA4' : '#24262D',
+                        fontWeight: 700,
+                        fontSize: '0.8rem',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Day {d.dayNumber}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Accordion Cards */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {selectedPackage.days.map(day => (
+                    <div
+                      key={day.dayNumber}
+                      className="card"
+                      style={{
+                        padding: '1.5rem',
+                        borderRadius: 16,
+                        border: pdpActiveDay === day.dayNumber ? '1.5px solid #0F4CA4' : '1px solid #EDEEF1',
+                        boxShadow: pdpActiveDay === day.dayNumber ? '0 8px 20px rgba(15, 76, 164, 0.08)' : 'none'
+                      }}
+                    >
+                      {/* Day Header */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: 6 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ background: '#0F4CA4', color: '#fff', fontSize: '0.75rem', fontWeight: 800, padding: '3px 8px', borderRadius: 6 }}>
+                            Day {day.dayNumber}
+                          </span>
+                          <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#24262D' }}>
+                            {day.dayTitle}
+                          </h4>
+                        </div>
+                        <span style={{ fontSize: '0.75rem', color: '#565E73', fontWeight: 600 }}>
+                          📍 {day.destination}
+                        </span>
                       </div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', maxWidth: '500px' }}>
-                        {day.currentActivity.description}
+
+                      {/* Scheduled Activity Box */}
+                      <div style={{ display: 'flex', gap: '1rem', background: '#F6F7F9', padding: '1rem', borderRadius: 12, marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                        <img
+                          src={day.currentActivity.image}
+                          alt={day.currentActivity.title}
+                          style={{ width: 85, height: 70, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }}
+                        />
+                        <div style={{ flex: 1, minWidth: 200 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                            <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#24262D' }}>
+                              {day.currentActivity.title}
+                            </span>
+                            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#0F4CA4', background: '#EFF8FF', padding: '2px 6px', borderRadius: 4 }}>
+                              {day.currentActivity.duration}
+                            </span>
+                          </div>
+                          <p style={{ fontSize: '0.78rem', color: '#565E73', margin: '0 0 6px', lineHeight: 1.4 }}>
+                            {day.currentActivity.description}
+                          </p>
+                          <div style={{ fontSize: '0.72rem', color: '#198754', fontWeight: 700 }}>
+                            ✓ Included in package
+                          </div>
+                        </div>
                       </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--visa-teal)', marginTop: '4px' }}>
-                        Duration: {day.currentActivity.duration} • Included in Base
+
+                      {/* Hotel & Meals Info */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: '#565E73', borderTop: '1px solid #EDEEF1', paddingTop: 8, flexWrap: 'wrap', gap: 6 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Building2 size={13} color="#0F4CA4" />
+                          <span>Stay: <strong style={{ color: '#24262D' }}>{day.hotelName}</strong> ({day.hotelTier})</span>
+                        </div>
+                        {day.mealsIncluded && (
+                          <div>
+                            Meals: <strong style={{ color: '#198754' }}>{day.mealsIncluded.join(' • ')}</strong>
+                          </div>
+                        )}
                       </div>
+
+                      {/* Modular Activity Swap Feature */}
+                      {day.alternativeActivities && day.alternativeActivities.length > 0 && (
+                        <div style={{ marginTop: '0.75rem', borderTop: '1px dashed #D7DAE0', paddingTop: '0.75rem' }}>
+                          {swappingDay === day.dayNumber ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                              <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#0F4CA4' }}>
+                                Swap with an Alternative Excursion for Day {day.dayNumber}:
+                              </div>
+                              {day.alternativeActivities.map(alt => (
+                                <div
+                                  key={alt.id}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '0.65rem 0.85rem',
+                                    borderRadius: 8,
+                                    background: '#FFFFFF',
+                                    border: '1px solid #D7DAE0',
+                                    fontSize: '0.82rem',
+                                    gap: 8,
+                                    flexWrap: 'wrap'
+                                  }}
+                                >
+                                  <div>
+                                    <div style={{ fontWeight: 700, color: '#24262D' }}>{alt.title}</div>
+                                    <div style={{ fontSize: '0.72rem', color: '#565E73' }}>{alt.duration} • {alt.description}</div>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <span style={{ fontWeight: 800, color: '#0F4CA4' }}>
+                                      +${alt.priceDelta}
+                                    </span>
+                                    <button
+                                      className="btn btn-sm btn-primary"
+                                      style={{ background: '#0F4CA4', borderColor: '#0F4CA4', borderRadius: 100, padding: '3px 10px', fontSize: '0.75rem' }}
+                                      onClick={() => handleSwapActivity(day.dayNumber, alt)}
+                                    >
+                                      Swap Now
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                              <button
+                                className="btn btn-sm btn-secondary"
+                                style={{ alignSelf: 'flex-start', fontSize: '0.75rem', borderRadius: 100, marginTop: 4 }}
+                                onClick={() => setSwappingDay(null)}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              className="btn btn-sm btn-secondary"
+                              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.75rem', color: '#0F4CA4', borderRadius: 100 }}
+                              onClick={() => setSwappingDay(day.dayNumber)}
+                            >
+                              <Repeat size={13} /> Customize / Upgrade Activity ({day.alternativeActivities.length} available)
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* INCLUSIONS & EXCLUSIONS TAB */}
+            {pdpActiveTab === 'inclusions' && (
+              <div className="card" style={{ padding: '1.75rem', borderRadius: 16 }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#24262D', margin: '0 0 1.25rem' }}>
+                  Inclusions & Exclusions
+                </h3>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem' }}>
+                  <div>
+                    <h4 style={{ fontSize: '1rem', fontWeight: 800, color: '#198754', margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <CheckCircle2 size={16} /> What is Included
+                    </h4>
+                    <ul style={{ margin: 0, paddingLeft: '1.2rem', fontSize: '0.85rem', color: '#24262D', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {(selectedPackage.inclusions || [
+                        'Economy return flight tickets (if booked with flights)',
+                        'Handpicked 4-star and luxury resort accommodations',
+                        'Daily buffet breakfasts and authentic regional dinners',
+                        'All transfers and sightseeing in comfortable private AC vehicles',
+                        'Entry permits and tickets for all scheduled attractions',
+                        'Dedicated Thomas Cook Tour Manager & local guides'
+                      ]).map((inc, idx) => (
+                        <li key={idx}>{inc}</li>
+                      ))}
+                    </ul>
                   </div>
 
-                  <button 
-                    className="btn btn-sm btn-secondary"
-                    onClick={() => setSwappingDay(swappingDay === day.dayNumber ? null : day.dayNumber)}
+                  <div>
+                    <h4 style={{ fontSize: '1rem', fontWeight: 800, color: '#FF7700', margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <X size={16} /> What is Excluded
+                    </h4>
+                    <ul style={{ margin: 0, paddingLeft: '1.2rem', fontSize: '0.85rem', color: '#565E73', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {(selectedPackage.exclusions || [
+                        'Personal expenses like telephone bills, laundry, alcoholic drinks',
+                        'Mandatory city taxes where applicable',
+                        'Optional extreme sports and activities outside itinerary',
+                        'Gratuities, tips, and camera/video permits at monuments'
+                      ]).map((exc, idx) => (
+                        <li key={idx}>{exc}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* HIGHLIGHTS TAB */}
+            {pdpActiveTab === 'highlights' && (
+              <div className="card" style={{ padding: '1.75rem', borderRadius: 16 }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#24262D', margin: '0 0 1.25rem' }}>
+                  Tour Highlights
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
+                  {selectedPackage.highlights.map((h, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 10, background: '#F6F7F9', padding: '1rem', borderRadius: 12 }}>
+                      <CheckCircle2 size={18} color="#0F4CA4" style={{ flexShrink: 0, marginTop: 2 }} />
+                      <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#24262D' }}>{h}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* SUMMARY & ASSURANCE TAB */}
+            {pdpActiveTab === 'summary' && (
+              <div className="card" style={{ padding: '1.75rem', borderRadius: 16 }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#24262D', margin: '0 0 1rem' }}>
+                  Thomas Cook Assurance & Policies
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: '#565E73', lineHeight: 1.6, margin: '0 0 1rem' }}>
+                  Over 140 years of trusted travel operations. Every Thomas Cook tour includes round-the-clock ground support, sanitized transport, and guaranteed hotel reservations.
+                </p>
+                <div style={{ background: '#F5FAFF', border: '1px solid #D7DAE0', borderRadius: 12, padding: '1rem', fontSize: '0.82rem', color: '#0F4CA4' }}>
+                  🛡️ <strong>Cancellation Policy:</strong> {selectedPackage.cancellationPolicy || 'Free cancellation up to 14 days before departure date.'}
+                </div>
+              </div>
+            )}
+
+          </div>
+
+          {/* RIGHT COLUMN: Sticky Booking & Callback Sidebar */}
+          <div style={{ position: 'sticky', top: '1rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              
+              {/* Primary Price Card */}
+              <div className="card" style={{ padding: '1.75rem', borderRadius: 16, border: '2px solid #0F4CA4', boxShadow: '0 10px 25px rgba(15, 76, 164, 0.12)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                  <div>
+                    <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: '#667085', fontWeight: 700 }}>
+                      Starting Price
+                    </span>
+                    <div style={{ fontSize: '2.2rem', fontWeight: 900, color: '#0F4CA4', margin: '2px 0', lineHeight: 1 }}>
+                      {formatPrice(sellingPrice)}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#565E73' }}>Per adult on twin sharing</div>
+                  </div>
+                  <span style={{ background: 'rgba(25, 135, 84, 0.1)', color: '#198754', fontWeight: 800, fontSize: '0.78rem', padding: '3px 8px', borderRadius: 4 }}>
+                    {selectedPackage.discountPercent || 8}% OFF
+                  </span>
+                </div>
+
+                <div style={{ background: '#EFF8FF', padding: '0.75rem', borderRadius: 8, fontSize: '0.78rem', color: '#0F4CA4', fontWeight: 600, marginBottom: '1.25rem' }}>
+                  🎁 Earn <strong>443 Thomas Cook Loyalty Points</strong> with this booking
+                </div>
+
+                <button
+                  className="btn btn-primary"
+                  style={{ width: '100%', background: '#0F4CA4', borderColor: '#0F4CA4', borderRadius: 100, padding: '0.85rem', fontWeight: 800, fontSize: '0.95rem', marginBottom: '0.75rem' }}
+                  onClick={() => setIsCalculatorDrawerOpen(true)}
+                >
+                  Calculate Price & Configure
+                </button>
+
+                <button
+                  className="btn btn-secondary"
+                  style={{ width: '100%', borderRadius: 100, fontSize: '0.82rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: '#198754' }}
+                  onClick={handleWhatsAppInquiry}
+                >
+                  <MessageSquare size={14} /> Inquire via WhatsApp
+                </button>
+              </div>
+
+              {/* "Want us to call you?" Lead Capture Card */}
+              <div className="card" style={{ padding: '1.5rem', borderRadius: 16, border: '1px solid #EDEEF1' }}>
+                <h4 style={{ fontSize: '1rem', fontWeight: 800, color: '#24262D', margin: '0 0 6px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <PhoneCall size={16} color="#0F4CA4" /> Want us to call you?
+                </h4>
+                <p style={{ fontSize: '0.75rem', color: '#565E73', margin: '0 0 1rem' }}>
+                  Leave your details and a Thomas Cook travel expert will call you back within 15 minutes.
+                </p>
+
+                {callbackSuccess ? (
+                  <div style={{ background: 'rgba(25, 135, 84, 0.1)', color: '#198754', padding: '0.75rem', borderRadius: 8, fontSize: '0.82rem', fontWeight: 700 }}>
+                    ✓ Callback requested! An expert will call you shortly.
+                  </div>
+                ) : (
+                  <form onSubmit={handleRequestCallback} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <input
+                        type="tel"
+                        className="form-input"
+                        required
+                        placeholder="Mobile Number (+91 XXXXX XXXXX)"
+                        value={callbackPhone}
+                        onChange={e => setCallbackPhone(e.target.value)}
+                        style={{ fontSize: '0.82rem' }}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <input
+                        type="email"
+                        className="form-input"
+                        placeholder="Email ID (Optional)"
+                        value={callbackEmail}
+                        onChange={e => setCallbackEmail(e.target.value)}
+                        style={{ fontSize: '0.82rem' }}
+                      />
+                    </div>
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: '0.7rem', color: '#667085', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={callbackConsent}
+                        onChange={e => setCallbackConsent(e.target.checked)}
+                        style={{ marginTop: 2 }}
+                      />
+                      <span>I accept the Privacy Policy and authorize Thomas Cook to contact me.</span>
+                    </label>
+                    <button
+                      type="submit"
+                      className="btn btn-secondary"
+                      style={{ borderRadius: 100, fontWeight: 700, fontSize: '0.82rem', background: '#F6F7F9' }}
+                    >
+                      Get a Callback
+                    </button>
+                  </form>
+                )}
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+
+        {/* SLIDE-OVER "CALCULATE PRICE & BOOK" DRAWER */}
+        {isCalculatorDrawerOpen && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1200, display: 'flex', justifyContent: 'flex-end' }}>
+            <div
+              className="card"
+              style={{
+                width: '100%',
+                maxWidth: 480,
+                height: '100%',
+                borderRadius: '16px 0 0 16px',
+                padding: '2rem',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                overflowY: 'auto'
+              }}
+            >
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                  <h3 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800, color: '#0F4CA4' }}>
+                    Configure & Book Package
+                  </h3>
+                  <button
+                    onClick={() => setIsCalculatorDrawerOpen(false)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
                   >
-                    <Repeat size={14} /> Swap / Upgrade Activity
+                    <X size={20} color="#565E73" />
                   </button>
                 </div>
 
-                {/* Swap Alternatives Drawer */}
-                {swappingDay === day.dayNumber && (
-                  <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(0,0,0,0.3)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border-dark-strong)' }}>
-                    <h5 style={{ fontSize: '0.85rem', color: 'var(--gold-400)', marginBottom: '0.75rem', textTransform: 'uppercase' }}>
-                      Alternative Activity Modules for Day {day.dayNumber}:
-                    </h5>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.75rem' }}>
-                      {day.alternativeActivities.map((alt) => (
-                        <div 
-                          key={alt.id}
-                          style={{
-                            padding: '0.75rem',
-                            borderRadius: 'var(--radius-sm)',
-                            border: '1px solid var(--border-dark)',
-                            background: 'rgba(255,255,255,0.02)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            justifyContent: 'space-between',
-                            gap: '0.5rem'
-                          }}
-                        >
-                          <div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, fontSize: '0.85rem', color: '#ffffff' }}>
-                              <span>{alt.title}</span>
-                              <span style={{ color: '#34d399' }}>+{formatPrice(alt.priceDelta)}</span>
-                            </div>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                              {alt.description}
-                            </p>
-                          </div>
-
-                          <button 
-                            className="btn btn-sm btn-primary-teal"
-                            onClick={() => handleSwapActivity(day.dayNumber, alt)}
-                          >
-                            Apply Swap (+{formatPrice(alt.priceDelta)})
-                          </button>
-                        </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  {/* Departure Hub */}
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ fontSize: '0.82rem', fontWeight: 700 }}>Departure City</label>
+                    <select
+                      className="form-select"
+                      value={drawerDepartureCity}
+                      onChange={e => setDrawerDepartureCity(e.target.value)}
+                    >
+                      {(selectedPackage.departureCities || ['Mumbai', 'Delhi', 'Bengaluru', 'Ahmedabad', 'Kolkata', 'Chennai']).map(city => (
+                        <option key={city} value={city}>Ex-{city}</option>
                       ))}
+                      <option value="Direct">Joining Direct (Land Only)</option>
+                    </select>
+                  </div>
+
+                  {/* Travel Date */}
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ fontSize: '0.82rem', fontWeight: 700 }}>Travel Date</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={drawerTravelDate}
+                      onChange={e => setDrawerTravelDate(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Hotel Tier */}
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ fontSize: '0.82rem', fontWeight: 700 }}>Hotel Tier Category</label>
+                    <select
+                      className="form-select"
+                      value={drawerHotelTier}
+                      onChange={e => setDrawerHotelTier(e.target.value as any)}
+                    >
+                      <option value="Comfort">Comfort 3-Star (-10% Economical)</option>
+                      <option value="Superior">Superior 4-Star (Recommended)</option>
+                      <option value="Luxury 5-Star">Luxury 5-Star Heritage (+35%)</option>
+                    </select>
+                  </div>
+
+                  {/* Traveler Quantity Counter */}
+                  <div style={{ background: '#F6F7F9', padding: '1rem', borderRadius: 12, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#24262D' }}>Adults (12+ yrs)</div>
+                        <div style={{ fontSize: '0.72rem', color: '#667085' }}>Base rate applied</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-secondary"
+                          style={{ width: 28, height: 28, padding: 0, borderRadius: '50%' }}
+                          onClick={() => setDrawerAdults(Math.max(1, drawerAdults - 1))}
+                        >
+                          <Minus size={13} />
+                        </button>
+                        <span style={{ fontWeight: 800, fontSize: '0.95rem', minWidth: 18, textAlign: 'center' }}>{drawerAdults}</span>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-secondary"
+                          style={{ width: 28, height: 28, padding: 0, borderRadius: '50%' }}
+                          onClick={() => setDrawerAdults(drawerAdults + 1)}
+                        >
+                          <Plus size={13} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#24262D' }}>Children (2-11 yrs)</div>
+                        <div style={{ fontSize: '0.72rem', color: '#667085' }}>40% child discount</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-secondary"
+                          style={{ width: 28, height: 28, padding: 0, borderRadius: '50%' }}
+                          onClick={() => setDrawerChildren(Math.max(0, drawerChildren - 1))}
+                        >
+                          <Minus size={13} />
+                        </button>
+                        <span style={{ fontWeight: 800, fontSize: '0.95rem', minWidth: 18, textAlign: 'center' }}>{drawerChildren}</span>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-secondary"
+                          style={{ width: 28, height: 28, padding: 0, borderRadius: '50%' }}
+                          onClick={() => setDrawerChildren(drawerChildren + 1)}
+                        >
+                          <Plus size={13} />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                )}
+
+                  {/* Summary Breakdown */}
+                  <div style={{ borderTop: '1px solid #EDEEF1', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.8rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#565E73' }}>
+                      <span>Wholesale Rate:</span>
+                      <span>{formatPrice(selectedPackage.basePrice)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#565E73' }}>
+                      <span>Thomas Cook Markup:</span>
+                      <span style={{ color: '#0F4CA4', fontWeight: 700 }}>+{adminHolidayConfig.partnerMarkupPercent}% Included</span>
+                    </div>
+                    {drawerAdults >= 4 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#198754', fontWeight: 700 }}>
+                        <span>Group Discount (4+ Pax):</span>
+                        <span>-{adminHolidayConfig.groupDiscountPercent}%</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-            ))}
+
+              {/* Bottom Action Section */}
+              <div style={{ borderTop: '1px solid #EDEEF1', paddingTop: '1.25rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
+                  <span style={{ fontSize: '0.85rem', color: '#667085', fontWeight: 600 }}>Total Package Price:</span>
+                  <span style={{ fontSize: '1.8rem', fontWeight: 900, color: '#0F4CA4' }}>
+                    {formatPrice(drawerTotal)}
+                  </span>
+                </div>
+
+                <button
+                  className="btn btn-primary"
+                  style={{ width: '100%', background: '#0F4CA4', borderColor: '#0F4CA4', borderRadius: 100, padding: '0.85rem', fontWeight: 800, fontSize: '1rem' }}
+                  onClick={handleCompleteDrawerBooking}
+                >
+                  Book Online & Confirm
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
+    );
+  }
+
+  // ===========================================================================
+  // RENDER VIEW: DISCOVERY & CATALOG LISTING
+  // ===========================================================================
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem', fontFamily: 'var(--font-tc-primary)' }}>
+      
+      {/* Editorial Hero Header with Signature Thomas Cook Navy & Yellow */}
+      <div 
+        style={{
+          background: 'linear-gradient(135deg, #0F4CA4 0%, #0A3778 60%, #1e293b 100%)',
+          borderRadius: 24,
+          padding: '3rem 2.5rem',
+          color: '#ffffff',
+          position: 'relative',
+          overflow: 'hidden',
+          boxShadow: '0 12px 35px rgba(15, 76, 164, 0.25)'
+        }}
+      >
+        <div style={{ maxWidth: 880, position: 'relative', zIndex: 2 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#FEE900', color: '#0F4CA4', padding: '4px 14px', borderRadius: 20, fontSize: '0.78rem', fontWeight: 800, marginBottom: '1.25rem' }}>
+            <Award size={14} /> OFFICIAL THOMAS COOK PARTNER • TRUSTED SINCE 1881
+          </div>
+
+          <h1 style={{ fontFamily: 'var(--font-tc-editorial)', fontSize: '3rem', fontWeight: 600, letterSpacing: '-0.02em', margin: '0 0 1rem', lineHeight: 1.15 }}>
+            Explore Handcrafted Holidays Across the World
+          </h1>
+
+          <p style={{ fontSize: '1.05rem', color: '#E2E8F0', lineHeight: 1.6, margin: '0 0 2rem', maxWidth: 680 }}>
+            Discover breathtaking holidays from majestic Kashmir & tropical Kerala to glamorous Dubai & the Swiss Alps. Guaranteed 4★ stays, authentic meals, and customizable day itineraries.
+          </p>
+
+          {/* 60px Rounded Hero Search Bar */}
+          <div style={{ position: 'relative', maxWidth: 640 }}>
+            <div
+              style={{
+                height: 60,
+                background: '#FFFFFF',
+                borderRadius: 60,
+                padding: '0.4rem 0.6rem 0.4rem 1.5rem',
+                display: 'flex',
+                alignItems: 'center',
+                boxShadow: '0 10px 25px rgba(0, 0, 0, 0.15)',
+                cursor: 'pointer'
+              }}
+              onClick={() => setIsSearchPopupOpen(true)}
+            >
+              <Search size={20} color="#0F4CA4" style={{ marginRight: 12, flexShrink: 0 }} />
+              <input
+                type="text"
+                placeholder='Search "Kashmir", "Dubai", "Switzerland", "Bali"...'
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                style={{
+                  border: 'none',
+                  outline: 'none',
+                  flex: 1,
+                  fontSize: '0.95rem',
+                  color: '#24262D',
+                  fontWeight: 500
+                }}
+              />
+              <button
+                style={{
+                  width: 46,
+                  height: 46,
+                  borderRadius: '50%',
+                  background: '#0F4CA4',
+                  border: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  cursor: 'pointer'
+                }}
+              >
+                <ArrowRight size={18} />
+              </button>
+            </div>
+
+            {/* Popular Search Overlay Popup */}
+            {isSearchPopupOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 70,
+                  left: 0,
+                  right: 0,
+                  background: '#FFFFFF',
+                  borderRadius: 20,
+                  padding: '1.5rem',
+                  boxShadow: '0 20px 35px rgba(0,0,0,0.2)',
+                  zIndex: 100,
+                  border: '1px solid #EDEEF1'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <span style={{ fontSize: '0.78rem', color: '#667085', fontWeight: 800, textTransform: 'uppercase' }}>
+                    Most Searched International Destinations
+                  </span>
+                  <button onClick={() => setIsSearchPopupOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#565E73' }}>
+                    <X size={16} />
+                  </button>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 }}>
+                  {popularInternational.map((dest, i) => (
+                    <div
+                      key={i}
+                      onClick={() => {
+                        setSearchQuery(dest.name);
+                        setIsSearchPopupOpen(false);
+                      }}
+                      style={{ cursor: 'pointer', textAlign: 'center' }}
+                    >
+                      <img src={dest.img} alt={dest.name} style={{ width: '100%', height: 60, objectFit: 'cover', borderRadius: 8, marginBottom: 4 }} />
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#24262D' }}>{dest.name}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ fontSize: '0.78rem', color: '#667085', fontWeight: 800, textTransform: 'uppercase', marginBottom: 12 }}>
+                  Most Searched Domestic Destinations
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                  {popularDomestic.map((dest, i) => (
+                    <div
+                      key={i}
+                      onClick={() => {
+                        setSearchQuery(dest.name);
+                        setIsSearchPopupOpen(false);
+                      }}
+                      style={{ cursor: 'pointer', textAlign: 'center' }}
+                    >
+                      <img src={dest.img} alt={dest.name} style={{ width: '100%', height: 60, objectFit: 'cover', borderRadius: 8, marginBottom: 4 }} />
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#24262D' }}>{dest.name}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
+      </div>
+
+      {/* Thomas Cook Holiday Assurance Strip */}
+      <div 
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '1rem',
+          padding: '1rem 1.5rem',
+          background: '#F5FAFF',
+          borderRadius: 16,
+          border: '1px solid #D7DAE0',
+          flexWrap: 'wrap'
+        }}
+      >
+        <div style={{ width: 42, height: 42, borderRadius: 10, background: '#0F4CA4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FEE900', fontWeight: 900, fontSize: '0.85rem', flexShrink: 0 }}>
+          TC
+        </div>
+        <div>
+          <div style={{ fontWeight: 800, color: '#0F4CA4', fontSize: '0.95rem' }}>Thomas Cook Holiday Assurance</div>
+          <div style={{ fontSize: '0.78rem', color: '#565E73' }}>140+ Years of Heritage • Verified 4★ Stays • Dedicated English/Hindi Tour Manager</div>
+        </div>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {['All Meals Included', 'Flexi-Cancellation', '24x7 On-Tour Support'].map(b => (
+            <span key={b} style={{ fontSize: '0.75rem', background: '#0F4CA4', color: '#fff', padding: '3px 12px', borderRadius: 20, fontWeight: 700 }}>
+              {b}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Segmented Destination Toggle & Filter Bar */}
+      <div className="card" style={{ padding: '1.25rem', borderRadius: 20, display: 'flex', flexDirection: 'column', gap: '1rem', border: '1px solid #EDEEF1' }}>
+        
+        {/* Top Row: Segmented Domestic vs International + Sort */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+          {/* Segmented Button */}
+          <div style={{ background: '#F6F7F9', padding: 4, borderRadius: 100, display: 'inline-flex', gap: 4 }}>
+            {[
+              { key: 'all', label: 'All Holidays' },
+              { key: 'international', label: '🌍 International Holidays' },
+              { key: 'domestic', label: '🇮🇳 India & Around' }
+            ].map(type => (
+              <button
+                key={type.key}
+                onClick={() => setDestTypeFilter(type.key as any)}
+                style={{
+                  background: destTypeFilter === type.key ? '#0F4CA4' : 'transparent',
+                  color: destTypeFilter === type.key ? '#FFFFFF' : '#565E73',
+                  border: 'none',
+                  borderRadius: 100,
+                  padding: '0.45rem 1.25rem',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                {type.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Sort Dropdown */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: '0.78rem', color: '#565E73', fontWeight: 600 }}>Sort by:</span>
+            <select
+              className="form-select"
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value as any)}
+              style={{ padding: '0.35rem 0.85rem', fontSize: '0.8rem', borderRadius: 100 }}
+            >
+              <option value="recommended">Recommended & Best Sellers</option>
+              <option value="price_asc">Price: Low to High</option>
+              <option value="price_desc">Price: High to Low</option>
+              <option value="duration">Duration (Days)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Filter Pills Bar: Group, Customised, Recommended, Trending */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', overflowX: 'auto', paddingBottom: 4 }}>
+          <span style={{ fontSize: '0.78rem', color: '#565E73', fontWeight: 700, flexShrink: 0 }}>Category:</span>
+          {[
+            { key: 'all', label: 'All Packages' },
+            { key: 'group', label: '👥 Group Tours' },
+            { key: 'customised', label: '🎨 Customised Tours' },
+            { key: 'recommended', label: '★ Recommended' },
+            { key: 'trending', label: '🔥 Trending Now' }
+          ].map(cat => (
+            <button
+              key={cat.key}
+              onClick={() => setTourCategoryFilter(cat.key)}
+              style={{
+                padding: '0.35rem 0.95rem',
+                borderRadius: 100,
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                border: tourCategoryFilter === cat.key ? '1px solid #0F4CA4' : '1px solid #D7DAE0',
+                background: tourCategoryFilter === cat.key ? '#EFF8FF' : '#FFFFFF',
+                color: tourCategoryFilter === cat.key ? '#0F4CA4' : '#24262D'
+              }}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Bottom Utility Row */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, borderTop: '1px solid #EDEEF1', paddingTop: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: '0.75rem', color: '#565E73' }}>Departure Hub:</span>
+            {['Mumbai', 'Delhi', 'Bengaluru', 'Ahmedabad', 'Kolkata'].map(city => (
+              <button
+                key={city}
+                onClick={() => setSelectedDepartureCity(city)}
+                style={{
+                  background: selectedDepartureCity === city ? '#0F4CA4' : 'transparent',
+                  color: selectedDepartureCity === city ? '#fff' : '#565E73',
+                  border: 'none',
+                  borderRadius: 12,
+                  padding: '2px 8px',
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Ex-{city}
+              </button>
+            ))}
+          </div>
+
+          <button
+            className="btn btn-sm btn-secondary"
+            style={{ fontSize: '0.75rem', borderRadius: 100, display: 'flex', alignItems: 'center', gap: 6 }}
+            onClick={() => setActiveTab(activeTab === 'tracker' ? 'packages' : 'tracker')}
+          >
+            <Compass size={13} /> {activeTab === 'tracker' ? 'Explore Holiday Catalog' : 'Track Existing Holiday Booking'}
+          </button>
+        </div>
+
+      </div>
+
+      {/* TRACKING LOOKUP SECTION */}
+      {activeTab === 'tracker' && (
+        <div className="card" style={{ padding: '1.75rem', borderRadius: 16, borderLeft: '4px solid #0F4CA4' }}>
+          <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#24262D', margin: '0 0 0.5rem' }}>
+            Track Your Thomas Cook Holiday Booking
+          </h3>
+          <p style={{ fontSize: '0.82rem', color: '#565E73', margin: '0 0 1rem' }}>
+            Enter your booking reference code (e.g. <span style={{ color: '#0F4CA4', fontWeight: 700 }}>TC-IN-984210</span>) to view itinerary confirmation and vouchers.
+          </p>
+
+          <div style={{ display: 'flex', gap: '0.75rem', maxWidth: 500, marginBottom: '1rem' }}>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="e.g. TC-IN-984210"
+              value={trackRefInput}
+              onChange={e => setTrackRefInput(e.target.value)}
+            />
+            <button
+              className="btn btn-primary"
+              style={{ background: '#0F4CA4', borderColor: '#0F4CA4', borderRadius: 100, fontWeight: 700 }}
+              onClick={handleTrackLookup}
+            >
+              Track
+            </button>
+          </div>
+
+          {trackLookupResult === 'not_found' && (
+            <div style={{ color: '#ef4444', fontSize: '0.85rem' }}>
+              No booking found with that reference. Please check and try again.
+            </div>
+          )}
+
+          {trackLookupResult && trackLookupResult !== 'not_found' && (
+            <div style={{ background: '#F6F7F9', borderRadius: 12, padding: '1.25rem', border: '1px solid #D7DAE0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                <span style={{ fontWeight: 800, color: '#0F4CA4', fontSize: '1.1rem' }}>
+                  {trackLookupResult.bookingReference}
+                </span>
+                <span style={{
+                  fontSize: '0.75rem',
+                  fontWeight: 800,
+                  padding: '3px 10px',
+                  borderRadius: 20,
+                  background: trackLookupResult.status === 'confirmed' ? 'rgba(25,135,84,0.1)' : 'rgba(255,119,0,0.1)',
+                  color: trackLookupResult.status === 'confirmed' ? '#198754' : '#FF7700'
+                }}>
+                  {trackLookupResult.status.toUpperCase()}
+                </span>
+              </div>
+              <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#24262D' }}>
+                {trackLookupResult.packageTitle}
+              </div>
+              <div style={{ fontSize: '0.82rem', color: '#565E73', marginTop: 4 }}>
+                Traveler: {trackLookupResult.customerName} • Travel Date: <strong>{trackLookupResult.travelDate}</strong> • Ex-{trackLookupResult.departureCity}
+              </div>
+              <div style={{ fontSize: '1rem', fontWeight: 800, color: '#0F4CA4', marginTop: 8 }}>
+                Total Paid: {formatPrice(trackLookupResult.totalAmountUSD)}
+              </div>
+            </div>
+          )}
+        </div>
       )}
+
+      {/* REAL THOMAS COOK PACKAGE CARDS LISTING (SRP) */}
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: 8 }}>
+          <div>
+            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#24262D', margin: 0 }}>
+              Available Holiday Packages ({filteredPackages.length})
+            </h3>
+            <p style={{ fontSize: '0.8rem', color: '#565E73', margin: '2px 0 0' }}>
+              Handpicked itineraries with guaranteed hotel stays and dedicated tour guides.
+            </p>
+          </div>
+          <div style={{ fontSize: '0.78rem', color: '#565E73' }}>
+            All rates include {adminHolidayConfig.partnerMarkupPercent}% partner commission
+          </div>
+        </div>
+
+        {filteredPackages.length === 0 ? (
+          <div className="card" style={{ padding: '3rem', textAlign: 'center', color: '#565E73', borderRadius: 16 }}>
+            No packages matched your filters. Try clearing search or choosing another destination.
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1.75rem' }}>
+            {filteredPackages.map(pkg => {
+              const sellingPrice = getPackageSellingPrice(pkg);
+              const strikethroughPrice = getStrikethroughPrice(sellingPrice, pkg.discountPercent || 8);
+
+              return (
+                <div
+                  key={pkg.id}
+                  className="card"
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    padding: 0,
+                    overflow: 'hidden',
+                    borderRadius: 16,
+                    border: '0.8px solid #EDEEF1',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                    transition: 'all 0.2s ease',
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => setSelectedPackage(pkg)}
+                >
+                  {/* Card Media Section */}
+                  <div style={{ position: 'relative', height: 210, width: '100%', overflow: 'hidden' }}>
+                    <img
+                      src={pkg.heroImage}
+                      alt={pkg.title}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                    
+                    {/* Top Ribbons */}
+                    <div style={{ position: 'absolute', top: 12, left: 12, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {pkg.isBestSeller && (
+                        <span style={{ fontSize: '0.7rem', fontWeight: 800, background: '#0F4CA4', color: '#fff', padding: '3px 8px', borderRadius: 4 }}>
+                          RECOMMENDED
+                        </span>
+                      )}
+                      {pkg.isTrending && (
+                        <span style={{ fontSize: '0.7rem', fontWeight: 800, background: '#FF7700', color: '#fff', padding: '3px 8px', borderRadius: 4 }}>
+                          TRENDING NOW
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Bottom Duration & Hub Tag */}
+                    <div style={{ position: 'absolute', bottom: 10, left: 10, right: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ background: 'rgba(36, 38, 45, 0.85)', color: '#fff', fontSize: '0.72rem', padding: '3px 8px', borderRadius: 4, fontWeight: 700 }}>
+                        {pkg.durationDays}N / {pkg.durationDays + 1}D
+                      </span>
+                      <span style={{ background: 'rgba(36, 38, 45, 0.85)', color: '#FEE900', fontSize: '0.72rem', padding: '3px 8px', borderRadius: 4, fontWeight: 700 }}>
+                        Ex-{selectedDepartureCity}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Card Body */}
+                  <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.75rem', color: '#0F4CA4', fontWeight: 800, textTransform: 'uppercase' }}>
+                        {pkg.destination}
+                      </span>
+                      <span style={{ fontSize: '0.72rem', color: '#FF7700', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
+                        <Star size={12} fill="#FF7700" color="#FF7700" /> 4.2 (230)
+                      </span>
+                    </div>
+
+                    <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#24262D', lineHeight: 1.35 }}>
+                      {pkg.title}
+                    </h4>
+
+                    {/* Route Night Breakdown Chips */}
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      {pkg.days.slice(0, 3).map((d, i) => (
+                        <span key={i} style={{ background: '#F6F7F9', color: '#565E73', fontSize: '0.7rem', fontWeight: 600, padding: '2px 6px', borderRadius: 4 }}>
+                          1N {d.destination}
+                        </span>
+                      ))}
+                      {pkg.days.length > 3 && (
+                        <span style={{ background: '#F6F7F9', color: '#565E73', fontSize: '0.7rem', fontWeight: 600, padding: '2px 6px', borderRadius: 4 }}>
+                          +{pkg.days.length - 3} more
+                        </span>
+                      )}
+                    </div>
+
+                    {/* 5 Inclusions Row */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderTop: '1px solid #EDEEF1', paddingTop: 8, fontSize: '0.7rem', color: '#565E73' }}>
+                      <span title="Flights">✈️ Flight</span>
+                      <span title="Hotels">🏨 Hotel</span>
+                      <span title="Sightseeing">📸 Sightseeing</span>
+                      <span title="Meals">🍽️ Meals</span>
+                    </div>
+                  </div>
+
+                  {/* Card Footer: Pricing & Action Button */}
+                  <div style={{ padding: '1rem 1.25rem', borderTop: '1px solid #EDEEF1', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#FFFFFF' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                        <span style={{ fontSize: '0.78rem', color: '#667085', textDecoration: 'line-through' }}>
+                          {formatPrice(strikethroughPrice)}
+                        </span>
+                        <span style={{ background: 'rgba(25, 135, 84, 0.1)', color: '#198754', fontWeight: 800, fontSize: '0.72rem', padding: '1px 5px', borderRadius: 4 }}>
+                          {pkg.discountPercent || 8}% OFF
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '1.45rem', fontWeight: 900, color: '#0F4CA4', lineHeight: 1 }}>
+                        {formatPrice(sellingPrice)}
+                      </div>
+                      <div style={{ fontSize: '0.68rem', color: '#667085' }}>Per adult</div>
+                    </div>
+
+                    <button
+                      className="btn btn-sm btn-primary"
+                      style={{ background: '#0F4CA4', borderColor: '#0F4CA4', borderRadius: 100, fontWeight: 800, padding: '0.5rem 1.25rem', display: 'flex', alignItems: 'center', gap: 4 }}
+                      onClick={e => {
+                        e.stopPropagation();
+                        setSelectedPackage(pkg);
+                      }}
+                    >
+                      View Details <ArrowRight size={13} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* "Why Thomas Cook?" 5 Heritage & Trust Pillars Grid */}
+      <div className="card" style={{ padding: '2.5rem 2rem', borderRadius: 24, background: '#F5FAFF', border: '1px solid #D7DAE0' }}>
+        <div style={{ textAlign: 'center', maxWidth: 640, margin: '0 auto 2rem' }}>
+          <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#0F4CA4', textTransform: 'uppercase' }}>
+            Unmatched Heritage & Safety
+          </span>
+          <h2 style={{ fontFamily: 'var(--font-tc-editorial)', fontSize: '2.2rem', fontWeight: 600, color: '#24262D', margin: '4px 0 8px' }}>
+            Why Travel with Thomas Cook?
+          </h2>
+          <p style={{ fontSize: '0.88rem', color: '#565E73', margin: 0 }}>
+            Leading Indian travelers to extraordinary global experiences since 1881.
+          </p>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
+          {[
+            { icon: '🏛️', title: 'Trusted Advisor', desc: 'Over 140 years of pioneering heritage designed for modern journeys.' },
+            { icon: '🎨', title: 'Customized Holidays', desc: 'Personalize daily itineraries according to your own pacing and preferences.' },
+            { icon: '🌍', title: 'Wide Varieties', desc: 'From romantic honeymoons to thrilling high treks and escorted tours.' },
+            { icon: '💳', title: 'Seamless Booking', desc: 'Hassle-free reservations with 100% secure payments and zero hidden fees.' },
+            { icon: '✈️', title: 'All-In-One Ease', desc: 'Complete holiday coverage: flights, hotels, meals, and curated tours.' }
+          ].map((item, idx) => (
+            <div key={idx} style={{ background: '#FFFFFF', padding: '1.5rem', borderRadius: 16, border: '0.8px solid #EDEEF1', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: '2rem' }}>{item.icon}</div>
+              <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#24262D' }}>{item.title}</h4>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: '#565E73', lineHeight: 1.45 }}>{item.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
     </div>
   );
 };

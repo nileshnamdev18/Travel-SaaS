@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { LeadPipelineStatus } from '../../types';
 import { 
   ShieldCheck, 
   TrendingUp, 
@@ -12,51 +11,154 @@ import {
   Plus, 
   CheckCircle2, 
   Clock, 
-  ArrowRight,
-  Download,
-  Building,
-  Briefcase,
-  Calendar
+  ArrowRight, 
+  Download, 
+  Building, 
+  Briefcase, 
+  Calendar,
+  Plane,
+  FileSpreadsheet,
+  XCircle,
+  Tag,
+  Globe,
+  Truck,
+  Trash2,
+  Edit3,
+  PhoneCall,
+  Save,
+  Zap,
+  Star,
+  Palmtree,
+  Compass,
+  MessageSquare,
+  Sparkles
 } from 'lucide-react';
-import { PdfEngine } from '../../services/pdfGenerator';
 import confetti from 'canvas-confetti';
+import { 
+  CountryVisaInfo, 
+  VisaApplicationStatus, 
+  VisaCategory,
+  HolidayPackage,
+  HolidayBookingRecord,
+  AdminHolidayConfig,
+  HolidayBookingStatus,
+  HolidayDestinationType
+} from '../../types';
 
 export const SuperAdminPanel: React.FC = () => {
   const { 
     formatPrice, 
+    bookings,
+    approveBooking,
+    cancelBooking,
+    adminMarkup,
+    updateAdminMarkup,
     leads, 
     updateLeadPipeline, 
     assignLeadToStaff, 
     staff,
-    vendorLedger, 
-    recordVendorPayment, 
-    offlineRates, 
-    addOfflineRate,
-    openModal
+    openModal,
+    // Visa Full-Stack Engine
+    visaDestinations,
+    updateVisaDestination,
+    addVisaDestination,
+    deleteVisaDestination,
+    visaApplications,
+    updateVisaApplicationStatus,
+    adminVisaConfig,
+    updateAdminVisaConfig,
+    // Thomas Cook Holiday Engine
+    holidayPackages,
+    updateHolidayPackage,
+    addHolidayPackage,
+    deleteHolidayPackage,
+    holidayBookings,
+    updateHolidayBookingStatus,
+    adminHolidayConfig,
+    updateAdminHolidayConfig
   } = useApp();
 
-  const [activeAdminTab, setActiveAdminTab] = useState<'analytics' | 'attribution' | 'leads' | 'vendor_ledger' | 'offline_rates'>('analytics');
+  const [activeAdminTab, setActiveAdminTab] = useState<'analytics' | 'bookings' | 'markups' | 'visas' | 'holidays' | 'leads'>('analytics');
   
-  // Offline Rate Modal
-  const [showAddRateModal, setShowAddRateModal] = useState(false);
-  const [newRateForm, setNewRateForm] = useState({
-    vendorName: 'Al-Shohada VIP Suites Makkah',
-    category: 'Executive Haram View Quad Suite',
-    validFrom: '2026-10-01',
-    validTo: '2026-12-31',
-    unitPrice: 165
+  // Markups local state
+  const [markupValues, setMarkupValues] = useState({
+    flightsFlatUSD: adminMarkup.flightsFlatUSD,
+    hotelsPercent: adminMarkup.hotelsPercent,
+    visasFlatUSD: adminMarkup.visasFlatUSD,
+    holidaysPercent: adminMarkup.holidaysPercent
+  });
+  const [savedMarkupSuccess, setSavedMarkupSuccess] = useState(false);
+
+  // Global Visa Engine local state
+  const [visaEngineConfig, setVisaEngineConfig] = useState({
+    globalPlatformFeeUSD: adminVisaConfig.globalPlatformFeeUSD,
+    expressTurnaroundSurchargeUSD: adminVisaConfig.expressTurnaroundSurchargeUSD,
+    doorstepCourierFeeUSD: adminVisaConfig.doorstepCourierFeeUSD,
+    onTimeGuaranteeActive: adminVisaConfig.onTimeGuaranteeActive,
+    supportHelpline: adminVisaConfig.supportHelpline,
+    whatsappSupportNumber: adminVisaConfig.whatsappSupportNumber
+  });
+  const [savedVisaEngineSuccess, setSavedVisaEngineSuccess] = useState(false);
+
+  // Global Holiday Engine local state
+  const [holidayEngineConfig, setHolidayEngineConfig] = useState({
+    partnerMarkupPercent: adminHolidayConfig.partnerMarkupPercent,
+    groupDiscountPercent: adminHolidayConfig.groupDiscountPercent,
+    tourManagerIncludedByDefault: adminHolidayConfig.tourManagerIncludedByDefault,
+    supportHelpline: adminHolidayConfig.supportHelpline,
+    whatsappInquiryNumber: adminHolidayConfig.whatsappInquiryNumber,
+    enableInstantBooking: adminHolidayConfig.enableInstantBooking
+  });
+  const [savedHolidayEngineSuccess, setSavedHolidayEngineSuccess] = useState(false);
+
+  // Destination Management state
+  const [editingDestinationId, setEditingDestinationId] = useState<string | null>(null);
+  const [editDestForm, setEditDestForm] = useState<Partial<CountryVisaInfo>>({});
+  const [showAddDestModal, setShowAddDestModal] = useState(false);
+  const [newDestForm, setNewDestForm] = useState<Partial<CountryVisaInfo>>({
+    countryName: '',
+    countryCode: '',
+    flag: '✈️',
+    category: 'instant_evisa',
+    guaranteeSlaDays: 3,
+    fastestTurnaround: '24 Hours',
+    tagline: 'Instant e-Visa processing',
+    rejectionRefundPolicy: '100% Platform Fee Refund on Delay',
+    supportsStickerVisa: false,
+    requiresPassportOCR: true,
+    popular: false
   });
 
-  // Pay Vendor Modal
-  const [payingVendorId, setPayingVendorId] = useState<string | null>(null);
-  const [paymentAmount, setPaymentAmount] = useState<number>(10000);
+  // Holiday Package CRUD state
+  const [editingHolidayId, setEditingHolidayId] = useState<string | null>(null);
+  const [editHolidayForm, setEditHolidayForm] = useState<Partial<HolidayPackage>>({});
+  const [showAddHolidayModal, setShowAddHolidayModal] = useState(false);
+  const [newHolidayForm, setNewHolidayForm] = useState<Partial<HolidayPackage>>({
+    title: '',
+    destination: '',
+    destinationType: 'domestic',
+    region: '',
+    category: 'Customized',
+    durationDays: 5,
+    durationNights: 4,
+    basePrice: 550,
+    wholesaleCost: 420,
+    heroImage: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=900&q=80',
+    highlights: ['Scenic Guided Tour', '4-Star Handpicked Stays', 'Breakfast & Dinners Included'],
+    isBestSeller: false,
+    discountPercent: 10
+  });
 
-  // Marketing Attribution Campaigns Data (Spec Sec 4)
+  // Filters state
+  const [visaAppStatusFilter, setVisaAppStatusFilter] = useState<string>('all');
+  const [holidayBookingStatusFilter, setHolidayBookingStatusFilter] = useState<string>('all');
+
+  // Marketing Attribution Campaigns Data
   const attributionCampaigns = [
-    { source: 'Google Ads Search', campaign: 'umrah_clocktower_vip_2026', spend: 8400, leads: 92, converted: 34, gbv: 166600, netProfit: 21400, cac: 247 },
-    { source: 'Meta Reels / Ads', campaign: 'kashmir_autumn_honeymoon', spend: 4200, leads: 110, converted: 26, gbv: 50700, netProfit: 7800, cac: 161 },
-    { source: 'TikTok Umrah Special', campaign: 'saudi_evisa_instant_promo', spend: 2800, leads: 145, converted: 48, gbv: 38880, netProfit: 5400, cac: 58 },
-    { source: 'Direct Organic SEO', campaign: 'organic_mice_dubai_summit', spend: 0, leads: 24, converted: 9, gbv: 252000, netProfit: 34200, cac: 0 },
+    { source: 'Google Ads Search', campaign: 'akbar_flights_dubai_2026', spend: 8400, leads: 92, converted: 34, gbv: 166600, netProfit: 21400, cac: 247 },
+    { source: 'Meta Reels / Ads', campaign: 'thomascook_kashmir_tour', spend: 4200, leads: 110, converted: 26, gbv: 50700, netProfit: 7800, cac: 161 },
+    { source: 'Instagram Stories', campaign: 'atlys_instant_evisa_promo', spend: 2800, leads: 145, converted: 48, gbv: 38880, netProfit: 5400, cac: 58 },
+    { source: 'Direct Organic SEO', campaign: 'akbar_hotels_best_rates', spend: 0, leads: 44, converted: 19, gbv: 82000, netProfit: 14200, cac: 0 },
   ];
 
   const totalGBV = attributionCampaigns.reduce((acc, c) => acc + c.gbv, 0);
@@ -64,52 +166,206 @@ export const SuperAdminPanel: React.FC = () => {
   const totalAdSpend = attributionCampaigns.reduce((acc, c) => acc + c.spend, 0);
   const blendedROAS = ((totalNetProfit / totalAdSpend) * 100).toFixed(0);
 
-  const handleAddOfflineRate = (e: React.FormEvent) => {
+  const handleSaveMarkups = (e: React.FormEvent) => {
     e.preventDefault();
-    addOfflineRate({
-      vendorName: newRateForm.vendorName,
-      category: newRateForm.category,
-      validFrom: newRateForm.validFrom,
-      validTo: newRateForm.validTo,
-      unitPrice: newRateForm.unitPrice,
-      currency: 'USD',
-      sourceTag: 'Offline/Manual',
-      expiryWarning: false
-    });
-    setShowAddRateModal(false);
+    updateAdminMarkup('flightsFlatUSD', markupValues.flightsFlatUSD);
+    updateAdminMarkup('hotelsPercent', markupValues.hotelsPercent);
+    updateAdminMarkup('visasFlatUSD', markupValues.visasFlatUSD);
+    updateAdminMarkup('holidaysPercent', markupValues.holidaysPercent);
+    setSavedMarkupSuccess(true);
+    setTimeout(() => setSavedMarkupSuccess(false), 2500);
     confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
   };
 
-  const handleRecordPayment = (vendorId: string) => {
-    recordVendorPayment(vendorId, paymentAmount, 'Bank Wire Remittance');
-    setPayingVendorId(null);
+  const handleSaveVisaEngine = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateAdminVisaConfig(visaEngineConfig);
+    setSavedVisaEngineSuccess(true);
+    setTimeout(() => setSavedVisaEngineSuccess(false), 3000);
+    confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
+  };
+
+  const handleSaveHolidayEngine = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateAdminHolidayConfig(holidayEngineConfig);
+    setSavedHolidayEngineSuccess(true);
+    setTimeout(() => setSavedHolidayEngineSuccess(false), 3000);
+    confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
+  };
+
+  const handleStartEditDestination = (dest: CountryVisaInfo) => {
+    setEditingDestinationId(dest.id);
+    setEditDestForm({
+      countryName: dest.countryName,
+      category: dest.category,
+      guaranteeSlaDays: dest.guaranteeSlaDays,
+      fastestTurnaround: dest.fastestTurnaround,
+      tagline: dest.tagline,
+      rejectionRefundPolicy: dest.rejectionRefundPolicy,
+      supportsStickerVisa: dest.supportsStickerVisa
+    });
+  };
+
+  const handleSaveEditDestination = (id: string) => {
+    updateVisaDestination(id, editDestForm);
+    setEditingDestinationId(null);
+  };
+
+  const handleCreateNewDestination = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDestForm.countryName) return;
+    const destId = (newDestForm.countryCode || newDestForm.countryName).toLowerCase().replace(/[^a-z0-9]/g, '-');
+    const createdDest: CountryVisaInfo = {
+      id: destId,
+      countryName: newDestForm.countryName,
+      countryCode: newDestForm.countryCode || destId.toUpperCase().slice(0, 3),
+      flag: newDestForm.flag || '✈️',
+      bannerImage: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80',
+      popular: newDestForm.popular ?? false,
+      category: newDestForm.category || 'instant_evisa',
+      guaranteeSlaDays: newDestForm.guaranteeSlaDays || 3,
+      fastestTurnaround: newDestForm.fastestTurnaround || '24 Hours',
+      tagline: newDestForm.tagline || 'Fastest tourist e-Visa',
+      rejectionRefundPolicy: newDestForm.rejectionRefundPolicy || '100% Platform Fee Refund on Delay',
+      requiresPassportOCR: true,
+      supportsStickerVisa: newDestForm.supportsStickerVisa ?? false,
+      options: [
+        {
+          id: `${destId}-tourist-30`,
+          title: '30-Day Single Entry Tourist Visa',
+          validityDays: 30,
+          maxStayDays: 30,
+          entryType: 'Single',
+          govFee: 45,
+          platformFee: adminVisaConfig.globalPlatformFeeUSD,
+          processingTimeStandard: `${newDestForm.guaranteeSlaDays || 3} Business Days`,
+          processingTimeExpress: newDestForm.fastestTurnaround || '24 Hours'
+        }
+      ],
+      requirements: [
+        { id: 'req-passport', title: 'Passport Front & Back', description: 'Min 6 months validity from date of entry', acceptedFormats: 'PDF, JPG, PNG', isRequired: true },
+        { id: 'req-photo', title: 'ICAO Standard Photograph', description: 'White background, neutral expression', acceptedFormats: 'JPG, PNG', isRequired: true }
+      ],
+      icaoRules: ['Plain white background', '70-80% face coverage', 'Neutral expression']
+    };
+    addVisaDestination(createdDest);
+    setShowAddDestModal(false);
     confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
   };
+
+  const handleStartEditHoliday = (pkg: HolidayPackage) => {
+    setEditingHolidayId(pkg.id);
+    setEditHolidayForm({
+      title: pkg.title,
+      destination: pkg.destination,
+      destinationType: pkg.destinationType,
+      category: pkg.category,
+      durationDays: pkg.durationDays,
+      basePrice: pkg.basePrice,
+      wholesaleCost: pkg.wholesaleCost,
+      isBestSeller: pkg.isBestSeller,
+      discountPercent: pkg.discountPercent
+    });
+  };
+
+  const handleSaveEditHoliday = (id: string) => {
+    updateHolidayPackage(id, editHolidayForm);
+    setEditingHolidayId(null);
+  };
+
+  const handleCreateNewHoliday = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newHolidayForm.title || !newHolidayForm.destination) return;
+    const pkgId = (newHolidayForm.title).toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 24);
+    const createdPkg: HolidayPackage = {
+      id: pkgId,
+      title: newHolidayForm.title,
+      destination: newHolidayForm.destination,
+      destinationType: newHolidayForm.destinationType || 'domestic',
+      region: newHolidayForm.region || 'Regional',
+      category: newHolidayForm.category || 'Customized',
+      durationDays: newHolidayForm.durationDays || 5,
+      durationNights: newHolidayForm.durationNights || (newHolidayForm.durationDays ? newHolidayForm.durationDays - 1 : 4),
+      departureCities: ['Mumbai', 'Delhi', 'Bengaluru', 'Ahmedabad'],
+      basePrice: newHolidayForm.basePrice || 500,
+      wholesaleCost: newHolidayForm.wholesaleCost || 400,
+      heroImage: newHolidayForm.heroImage || 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=900&q=80',
+      highlights: newHolidayForm.highlights || ['Scenic Sightseeing Tour', '4-Star Stay', 'Breakfast & Dinner'],
+      inclusions: [
+        'Accommodation in 4-Star Handpicked Hotels',
+        'Daily Buffet Breakfasts & Dinners',
+        'Private AC Transfers & Sightseeing',
+        'Entry tickets for scheduled monuments'
+      ],
+      exclusions: ['Airfare / Train tickets to destination', 'Personal shopping and room service'],
+      hotelTiers: {
+        standard: 'Selected 3-Star Quality Hotel',
+        deluxe: 'Selected 4-Star Premium Hotel',
+        luxury: 'Selected 5-Star Luxury Resort'
+      },
+      isBestSeller: newHolidayForm.isBestSeller ?? false,
+      discountPercent: newHolidayForm.discountPercent || 10,
+      cancellationPolicy: 'Free cancellation up to 10 days before departure.',
+      days: [
+        {
+          dayNumber: 1,
+          dayTitle: 'Arrival & Welcome Excursion',
+          destination: newHolidayForm.destination,
+          currentActivity: {
+            id: 'act-arrival',
+            title: 'Orientation City Sightseeing & Evening Walk',
+            duration: '3 Hours',
+            priceDelta: 0,
+            image: newHolidayForm.heroImage || 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=500&q=80',
+            description: 'Relaxed introductory exploration of key local viewpoints and markets.'
+          },
+          alternativeActivities: [],
+          hotelName: 'Premium 4-Star City Hotel',
+          hotelTier: 'Superior',
+          mealsIncluded: ['Dinner']
+        }
+      ]
+    };
+    addHolidayPackage(createdPkg);
+    setShowAddHolidayModal(false);
+    confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+  };
+
+  const filteredVisaApplications = visaApplications.filter(app => {
+    if (visaAppStatusFilter === 'all') return true;
+    return app.status === visaAppStatusFilter;
+  });
+
+  const filteredHolidayBookings = holidayBookings.filter(b => {
+    if (holidayBookingStatusFilter === 'all') return true;
+    return b.status === holidayBookingStatusFilter;
+  });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-      {/* Super Admin Header Banner */}
+      {/* Header Banner */}
       <div 
         style={{
-          background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.95) 0%, rgba(20, 31, 54, 0.98) 100%)',
+          background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #032559 100%)',
           borderRadius: 'var(--radius-xl)',
-          padding: '2.5rem',
-          border: '1px solid rgba(129, 140, 248, 0.4)',
-          boxShadow: 'var(--shadow-lg)'
+          padding: '2.5rem 2rem',
+          color: '#ffffff',
+          position: 'relative',
+          overflow: 'hidden',
+          boxShadow: 'var(--shadow-md)'
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1.5rem' }}>
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.5rem' }}>
           <div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(255, 255, 255, 0.15)', color: '#ffffff', padding: '4px 12px', borderRadius: 'var(--radius-full)', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.75rem' }}>
-              <ShieldCheck size={14} /> SUPER ADMIN & ENTERPRISE OPERATIONS HUB
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(220,38,38,0.2)', border: '1px solid rgba(220,38,38,0.4)', padding: '4px 12px', borderRadius: 'var(--radius-full)', fontSize: '0.8rem', fontWeight: 800, color: '#fca5a5', marginBottom: '0.75rem' }}>
+              <ShieldCheck size={14} color="#fca5a5" />
+              Super Admin Executive Portal • Full Governance
             </div>
-
-            <h1 style={{ fontSize: '2.3rem', fontWeight: 800, color: '#ffffff' }}>
-              Platform Oversight & Revenue Engine
+            <h1 style={{ fontSize: '2.2rem', fontWeight: 900, letterSpacing: '-0.02em', margin: 0 }}>
+              Platform Super Admin Hub
             </h1>
-
-            <p style={{ fontSize: '0.95rem', color: '#c7d2fe', marginTop: '4px' }}>
-              Real-time Gross Booking Value, Marketing Ads Attribution, Lead Assignment CRM, and Vendor Payables Ledgers.
+            <p style={{ fontSize: '0.95rem', color: '#c7d2fe', marginTop: '6px', maxWidth: '650px', lineHeight: 1.5 }}>
+              Manage platform gross booking value, customer reservations across Akbar Travels, Atlys & Thomas Cook, adjust partner markups, and configure holiday & visa engines.
             </p>
           </div>
 
@@ -125,157 +381,214 @@ export const SuperAdminPanel: React.FC = () => {
       </div>
 
       {/* Sub Navigation */}
-      <div className="glass-card" style={{ padding: '0.75rem 1rem' }}>
+      <div className="card" style={{ padding: '0.75rem 1rem' }}>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button 
-            className={`btn btn-sm ${activeAdminTab === 'analytics' ? 'btn-primary-teal' : 'btn-secondary'}`}
+            className={`btn btn-sm ${activeAdminTab === 'analytics' ? 'btn-primary' : 'btn-secondary'}`}
             onClick={() => setActiveAdminTab('analytics')}
           >
-            <TrendingUp size={15} /> Executive Revenue & GBV
+            <TrendingUp size={15} /> Executive Revenue & Analytics
           </button>
 
           <button 
-            className={`btn btn-sm ${activeAdminTab === 'attribution' ? 'btn-primary-teal' : 'btn-secondary'}`}
-            onClick={() => setActiveAdminTab('attribution')}
+            className={`btn btn-sm ${activeAdminTab === 'bookings' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setActiveAdminTab('bookings')}
           >
-            <Target size={15} /> Ads Attribution & UTM ROI
+            <Calendar size={15} /> Customer Bookings ({bookings.length})
           </button>
 
           <button 
-            className={`btn btn-sm ${activeAdminTab === 'leads' ? 'btn-primary-teal' : 'btn-secondary'}`}
+            className={`btn btn-sm ${activeAdminTab === 'markups' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setActiveAdminTab('markups')}
+          >
+            <Tag size={15} /> Partner Markups & Pricing
+          </button>
+
+          <button 
+            className={`btn btn-sm ${activeAdminTab === 'visas' ? 'btn-primary' : 'btn-secondary'}`}
+            style={activeAdminTab === 'visas' ? { background: '#7c3aed', borderColor: '#7c3aed', color: '#fff' } : {}}
+            onClick={() => setActiveAdminTab('visas')}
+          >
+            <Globe size={15} /> 🛂 Atlys Visa Operations ({visaApplications.length})
+          </button>
+
+          <button 
+            className={`btn btn-sm ${activeAdminTab === 'holidays' ? 'btn-primary' : 'btn-secondary'}`}
+            style={activeAdminTab === 'holidays' ? { background: '#d97706', borderColor: '#d97706', color: '#fff' } : {}}
+            onClick={() => setActiveAdminTab('holidays')}
+          >
+            <Palmtree size={15} /> 🏖️ Thomas Cook Holidays ({holidayBookings.length})
+          </button>
+
+          <button 
+            className={`btn btn-sm ${activeAdminTab === 'leads' ? 'btn-primary' : 'btn-secondary'}`}
             onClick={() => setActiveAdminTab('leads')}
           >
-            <Users size={15} /> Staff CRM & Lead Pipeline ({leads.length})
-          </button>
-
-          <button 
-            className={`btn btn-sm ${activeAdminTab === 'vendor_ledger' ? 'btn-primary-teal' : 'btn-secondary'}`}
-            onClick={() => setActiveAdminTab('vendor_ledger')}
-          >
-            <DollarSign size={15} /> Vendor Payables Ledger & Recon
-          </button>
-
-          <button 
-            className={`btn btn-sm ${activeAdminTab === 'offline_rates' ? 'btn-primary-teal' : 'btn-secondary'}`}
-            onClick={() => setActiveAdminTab('offline_rates')}
-          >
-            <Layers size={15} /> Offline Rate Sheets ({offlineRates.length})
+            <Users size={15} /> Customer Inquiries & CRM ({leads.length})
           </button>
         </div>
       </div>
 
-      {/* TAB 1: Executive Analytics (Sec 4 & 5.2) */}
+      {/* TAB 1: Executive Analytics */}
       {activeAdminTab === 'analytics' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           {/* Top KPI Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
-            <div className="glass-card">
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Gross Booking Value (GBV)</div>
-              <div style={{ fontSize: '1.9rem', fontWeight: 800, color: '#ffffff', margin: '4px 0' }}>
+            <div className="card" style={{ padding: '1.5rem' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Gross Booking Value (GBV)</div>
+              <div style={{ fontSize: '2rem', fontWeight: 900, color: 'var(--text-heading)', margin: '6px 0' }}>
                 {formatPrice(totalGBV)}
               </div>
-              <div style={{ fontSize: '0.75rem', color: '#34d399' }}>+22.4% vs last calendar month</div>
+              <div style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>+24.6% vs last calendar month</div>
             </div>
 
-            <div className="glass-card" style={{ borderLeft: '4px solid #10b981' }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Net Platform Profit (Sec 5.2)</div>
-              <div style={{ fontSize: '1.9rem', fontWeight: 800, color: '#34d399', margin: '4px 0' }}>
+            <div className="card" style={{ padding: '1.5rem', borderLeft: '4px solid #10b981' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Platform Net Commission</div>
+              <div style={{ fontSize: '2rem', fontWeight: 900, color: '#10b981', margin: '6px 0' }}>
                 {formatPrice(totalNetProfit)}
               </div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Revenue − Vendor Cost − Commission</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Net Margin: 14.8% blended</div>
             </div>
 
-            <div className="glass-card">
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Marketing Paid Spend</div>
-              <div style={{ fontSize: '1.9rem', fontWeight: 800, color: 'var(--gold-400)', margin: '4px 0' }}>
-                {formatPrice(totalAdSpend)}
+            <div className="card" style={{ padding: '1.5rem', borderLeft: '4px solid var(--brand-accent)' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Total Bookings</div>
+              <div style={{ fontSize: '2rem', fontWeight: 900, color: 'var(--brand-accent)', margin: '6px 0' }}>
+                {bookings.length}
               </div>
-              <div style={{ fontSize: '0.75rem', color: '#60a5fa' }}>Blended Campaign ROI: {blendedROAS}%</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Across 6 Travel Verticals</div>
             </div>
 
-            <div className="glass-card">
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Active Inbound Leads</div>
-              <div style={{ fontSize: '1.9rem', fontWeight: 800, color: 'var(--visa-teal)', margin: '4px 0' }}>
-                {leads.length} Open
+            <div className="card" style={{ padding: '1.5rem', borderLeft: '4px solid #8b5cf6' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Marketing ROAS</div>
+              <div style={{ fontSize: '2rem', fontWeight: 900, color: '#8b5cf6', margin: '6px 0' }}>
+                {blendedROAS}%
               </div>
-              <div style={{ fontSize: '0.75rem', color: '#5eead4' }}>Avg. Staff SLA response: 24 mins</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Ad Spend: {formatPrice(totalAdSpend)}</div>
             </div>
           </div>
 
-          {/* Revenue Split & Margin Breakdown Chart Simulation */}
-          <div className="glass-card">
-            <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', color: '#ffffff' }}>
-              Vertical-by-Vertical Revenue Contribution
+          {/* Marketing Campaigns Table */}
+          <div className="card" style={{ padding: '1.5rem' }}>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-heading)', marginBottom: '1rem' }}>
+              Channel Marketing Attribution Performance
             </h3>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-              <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-dark)' }}>
-                <div style={{ fontSize: '0.8rem', color: 'var(--gold-400)', fontWeight: 700 }}>Umrah Pilgrimage</div>
-                <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#ffffff', margin: '4px 0' }}>$166,600</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>34 Groups Confirmed</div>
-              </div>
-
-              <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-dark)' }}>
-                <div style={{ fontSize: '0.8rem', color: '#818cf8', fontWeight: 700 }}>M.I.C.E. Corporate</div>
-                <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#ffffff', margin: '4px 0' }}>$252,000</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>9 Large Summits</div>
-              </div>
-
-              <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-dark)' }}>
-                <div style={{ fontSize: '0.8rem', color: '#34d399', fontWeight: 700 }}>Custom Holidays</div>
-                <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#ffffff', margin: '4px 0' }}>$50,700</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>26 Modular Tours</div>
-              </div>
-
-              <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-dark)' }}>
-                <div style={{ fontSize: '0.8rem', color: 'var(--visa-teal)', fontWeight: 700 }}>Global e-Visas</div>
-                <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#ffffff', margin: '4px 0' }}>$38,880</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>48 Instant OCR Clearances</div>
-              </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-card-subtle)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Ad Channel & Partner</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Ad Spend</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Leads</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Converted</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>GBV Generated</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Net Profit</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Blended CAC</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {attributionCampaigns.map((c, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <td style={{ padding: '12px 14px', fontWeight: 700, color: 'var(--text-heading)' }}>
+                        {c.source}
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 400 }}>{c.campaign}</div>
+                      </td>
+                      <td style={{ padding: '12px 14px' }}>{formatPrice(c.spend)}</td>
+                      <td style={{ padding: '12px 14px' }}>{c.leads}</td>
+                      <td style={{ padding: '12px 14px', color: '#10b981', fontWeight: 700 }}>{c.converted}</td>
+                      <td style={{ padding: '12px 14px', fontWeight: 700 }}>{formatPrice(c.gbv)}</td>
+                      <td style={{ padding: '12px 14px', color: '#10b981', fontWeight: 700 }}>{formatPrice(c.netProfit)}</td>
+                      <td style={{ padding: '12px 14px' }}>{formatPrice(c.cac)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
       )}
 
-      {/* TAB 2: Marketing Ads Attribution (Sec 4) */}
-      {activeAdminTab === 'attribution' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <div>
-            <h3 style={{ fontSize: '1.2rem', color: '#ffffff' }}>Marketing Lead Source Tracking (Ads Attribution)</h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              UTM tracking captured at first inquiry and tied directly to closed gross revenue and net platform profit.
-            </p>
+      {/* TAB 2: Customer Bookings */}
+      {activeAdminTab === 'bookings' && (
+        <div className="card" style={{ padding: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-heading)', margin: 0 }}>
+                Live Customer Bookings
+              </h3>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                Real reservations created via Akbar Travels (Flights/Hotels), Thomas Cook (Holidays), and Atlys (Visas).
+              </p>
+            </div>
           </div>
 
-          <div className="data-table-container">
-            <table className="data-table">
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
               <thead>
-                <tr>
-                  <th>Ad Platform / Source</th>
-                  <th>UTM Campaign Identifier</th>
-                  <th>Ad Spend</th>
-                  <th>Leads</th>
-                  <th>Bookings</th>
-                  <th>CAC / Booking</th>
-                  <th>Gross Value (GBV)</th>
-                  <th>Net Platform Profit</th>
+                <tr style={{ background: 'var(--bg-card-subtle)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>
+                  <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Booking ID</th>
+                  <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Vertical & Partner</th>
+                  <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Customer Details</th>
+                  <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Date & Schedule</th>
+                  <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Amount</th>
+                  <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Status</th>
+                  <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {attributionCampaigns.map((camp, idx) => (
-                  <tr key={idx}>
-                    <td>
-                      <span className="badge badge-teal" style={{ fontSize: '0.7rem' }}>
-                        {camp.source}
+                {bookings.map(b => (
+                  <tr key={b.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                    <td style={{ padding: '12px 14px', fontWeight: 700, color: 'var(--text-heading)' }}>
+                      {b.id}
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400 }}>{b.referenceCode}</div>
+                    </td>
+                    <td style={{ padding: '12px 14px' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', background: 'var(--bg-card-subtle)', textTransform: 'uppercase' }}>
+                        {b.vertical}
+                      </span>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>{b.subtitle || b.title}</div>
+                    </td>
+                    <td style={{ padding: '12px 14px' }}>
+                      <div style={{ fontWeight: 600 }}>{b.passenger?.fullName || b.travelerName || 'Customer'}</div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{b.passenger?.email || '—'}</div>
+                    </td>
+                    <td style={{ padding: '12px 14px', color: 'var(--text-muted)' }}>
+                      {b.travelDates || b.travelDate || '—'}
+                    </td>
+                    <td style={{ padding: '12px 14px', fontWeight: 800 }}>
+                      {formatPrice(b.totalAmountUSD)}
+                    </td>
+                    <td style={{ padding: '12px 14px' }}>
+                      <span style={{ 
+                        fontSize: '0.75rem', 
+                        fontWeight: 700, 
+                        padding: '3px 8px', 
+                        borderRadius: '4px',
+                        background: b.status === 'confirmed' ? 'rgba(16,185,129,0.1)' : b.status === 'pending_approval' ? 'rgba(245,158,11,0.1)' : 'rgba(239,68,68,0.1)',
+                        color: b.status === 'confirmed' ? '#10b981' : b.status === 'pending_approval' ? '#f59e0b' : '#ef4444'
+                      }}>
+                        {b.status.toUpperCase()}
                       </span>
                     </td>
-                    <td style={{ fontFamily: 'monospace', color: '#93c5fd' }}>{camp.campaign}</td>
-                    <td>{formatPrice(camp.spend)}</td>
-                    <td>{camp.leads}</td>
-                    <td style={{ fontWeight: 700, color: '#34d399' }}>{camp.converted}</td>
-                    <td>{camp.cac > 0 ? formatPrice(camp.cac) : 'Organic (Free)'}</td>
-                    <td style={{ fontWeight: 600 }}>{formatPrice(camp.gbv)}</td>
-                    <td style={{ fontWeight: 800, color: '#34d399' }}>+{formatPrice(camp.netProfit)}</td>
+                    <td style={{ padding: '12px 14px' }}>
+                      {b.status === 'pending_approval' && (
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button 
+                            className="btn btn-sm btn-primary"
+                            style={{ padding: '3px 8px', fontSize: '0.75rem' }}
+                            onClick={() => approveBooking(b.id, 'Approved by Super Admin')}
+                          >
+                            Approve
+                          </button>
+                          <button 
+                            className="btn btn-sm btn-secondary"
+                            style={{ padding: '3px 8px', fontSize: '0.75rem', color: '#ef4444' }}
+                            onClick={() => cancelBooking(b.id)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -284,68 +597,1238 @@ export const SuperAdminPanel: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 3: Staff Management & Lead Pipeline CRM (Sec 4) */}
+      {/* TAB 3: Partner Markups */}
+      {activeAdminTab === 'markups' && (
+        <div className="card" style={{ padding: '1.5rem' }}>
+          <div style={{ marginBottom: '1.5rem' }}>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-heading)', margin: 0 }}>
+              Partner Dynamic Markups & Pricing Engine
+            </h3>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+              Adjust live consumer pricing by setting fee markups on top of Akbar Travels, Atlys and Thomas Cook wholesale rates.
+            </p>
+          </div>
+
+          <form onSubmit={handleSaveMarkups} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: '600px' }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Akbar Travels Flight Markup (Flat USD / Passenger)</span>
+                <strong style={{ color: 'var(--brand-accent)' }}>+${markupValues.flightsFlatUSD}</strong>
+              </label>
+              <input 
+                type="number" 
+                className="form-input"
+                min="0"
+                step="1"
+                value={markupValues.flightsFlatUSD}
+                onChange={e => setMarkupValues({ ...markupValues, flightsFlatUSD: parseFloat(e.target.value) || 0 })}
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Akbar Travels Hotel Markup (Percentage % on Room Rate)</span>
+                <strong style={{ color: 'var(--brand-accent)' }}>+{markupValues.hotelsPercent}%</strong>
+              </label>
+              <input 
+                type="number" 
+                className="form-input"
+                min="0"
+                step="0.5"
+                value={markupValues.hotelsPercent}
+                onChange={e => setMarkupValues({ ...markupValues, hotelsPercent: parseFloat(e.target.value) || 0 })}
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Atlys Visa Application Platform Surcharge (Flat USD)</span>
+                <strong style={{ color: '#7c3aed' }}>+${markupValues.visasFlatUSD}</strong>
+              </label>
+              <input 
+                type="number" 
+                className="form-input"
+                min="0"
+                step="1"
+                value={markupValues.visasFlatUSD}
+                onChange={e => setMarkupValues({ ...markupValues, visasFlatUSD: parseFloat(e.target.value) || 0 })}
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Thomas Cook Holidays Commission (%)</span>
+                <strong style={{ color: '#d97706' }}>+{markupValues.holidaysPercent}%</strong>
+              </label>
+              <input 
+                type="number" 
+                className="form-input"
+                min="0"
+                step="0.5"
+                value={markupValues.holidaysPercent}
+                onChange={e => setMarkupValues({ ...markupValues, holidaysPercent: parseFloat(e.target.value) || 0 })}
+              />
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '0.5rem' }}>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                style={{ padding: '0.75rem 1.5rem', fontWeight: 800 }}
+              >
+                Save Markup Configuration
+              </button>
+              {savedMarkupSuccess && (
+                <span style={{ color: '#10b981', fontWeight: 700, fontSize: '0.85rem' }}>
+                  ✓ Markups successfully applied to live booking engine!
+                </span>
+              )}
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* TAB 4: Atlys Visa Operations & Engine */}
+      {activeAdminTab === 'visas' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          
+          {/* Sub-section A: Global Visa Engine Config */}
+          <div className="card" style={{ padding: '1.5rem', borderLeft: '4px solid #7c3aed' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#7c3aed', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Globe size={20} /> Atlys Visa Engine Global Settings
+                </h3>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                  Configure platform fee rules, doorstep courier fees, on-time SLA guarantee status, and customer support channels.
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveVisaEngine} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Global Platform Fee (USD)</label>
+                <input 
+                  type="number" 
+                  className="form-input"
+                  min="0"
+                  step="1"
+                  value={visaEngineConfig.globalPlatformFeeUSD}
+                  onChange={e => setVisaEngineConfig({ ...visaEngineConfig, globalPlatformFeeUSD: parseFloat(e.target.value) || 0 })}
+                />
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>Applied across all destinations</div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Doorstep Courier Fee (USD)</label>
+                <input 
+                  type="number" 
+                  className="form-input"
+                  min="0"
+                  step="1"
+                  value={visaEngineConfig.doorstepCourierFeeUSD}
+                  onChange={e => setVisaEngineConfig({ ...visaEngineConfig, doorstepCourierFeeUSD: parseFloat(e.target.value) || 0 })}
+                />
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>For physical embassy sticker visas</div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Express Surcharge (USD)</label>
+                <input 
+                  type="number" 
+                  className="form-input"
+                  min="0"
+                  step="1"
+                  value={visaEngineConfig.expressTurnaroundSurchargeUSD}
+                  onChange={e => setVisaEngineConfig({ ...visaEngineConfig, expressTurnaroundSurchargeUSD: parseFloat(e.target.value) || 0 })}
+                />
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>Fast-track visa processing fee</div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Support Helpline</label>
+                <input 
+                  type="text" 
+                  className="form-input"
+                  value={visaEngineConfig.supportHelpline}
+                  onChange={e => setVisaEngineConfig({ ...visaEngineConfig, supportHelpline: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">WhatsApp Helpline</label>
+                <input 
+                  type="text" 
+                  className="form-input"
+                  value={visaEngineConfig.whatsappSupportNumber}
+                  onChange={e => setVisaEngineConfig({ ...visaEngineConfig, whatsappSupportNumber: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <label className="form-label" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input 
+                    type="checkbox" 
+                    checked={visaEngineConfig.onTimeGuaranteeActive}
+                    onChange={e => setVisaEngineConfig({ ...visaEngineConfig, onTimeGuaranteeActive: e.target.checked })}
+                    style={{ width: 18, height: 18, accentColor: '#7c3aed' }}
+                  />
+                  <span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>On-Time SLA Guarantee Active</span>
+                </label>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Displays "100% Fee Refund on Delay" on customer portal</div>
+              </div>
+
+              <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '0.5rem' }}>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ background: '#7c3aed', borderColor: '#7c3aed', padding: '0.75rem 1.75rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <Save size={16} /> Save Visa Engine Configuration
+                </button>
+                {savedVisaEngineSuccess && (
+                  <span style={{ color: '#10b981', fontWeight: 700, fontSize: '0.85rem' }}>
+                    ✓ Configuration saved! Reflected in real-time on Atlys Visa Desk.
+                  </span>
+                )}
+              </div>
+            </form>
+          </div>
+
+          {/* Sub-section B: Visa Applications Pipeline */}
+          <div className="card" style={{ padding: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-heading)', margin: 0 }}>
+                  Active Visa Applications Pipeline ({visaApplications.length})
+                </h3>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                  Monitor applicant biodata, OCR results, and advance applications through the consular pipeline.
+                </p>
+              </div>
+
+              {/* Status Filter */}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {['all', 'docs_uploaded', 'ocr_verified', 'embassy_processing', 'approved', 'rejected'].map(st => (
+                  <button
+                    key={st}
+                    className={`btn btn-sm ${visaAppStatusFilter === st ? 'btn-primary' : 'btn-secondary'}`}
+                    style={visaAppStatusFilter === st ? { background: '#7c3aed', borderColor: '#7c3aed' } : {}}
+                    onClick={() => setVisaAppStatusFilter(st)}
+                  >
+                    {st === 'all' ? 'All' : st.replace('_', ' ').toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-card-subtle)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Tracking ID</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Applicant</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Destination & Type</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>SLA Delivery</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Amount</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Consular Status</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredVisaApplications.map(app => (
+                    <tr key={app.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <td style={{ padding: '12px 14px', fontWeight: 800, color: '#7c3aed' }}>
+                        {app.trackingId}
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400 }}>{app.submissionDate}</div>
+                      </td>
+                      <td style={{ padding: '12px 14px' }}>
+                        <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{app.applicantName}</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Passport: {app.passportNumber}</div>
+                        {app.applicantPhone && <div style={{ fontSize: '0.72rem', color: 'var(--brand-blue)' }}>{app.applicantPhone}</div>}
+                      </td>
+                      <td style={{ padding: '12px 14px' }}>
+                        <div style={{ fontWeight: 700 }}>{app.country}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{app.visaType}</div>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '2px 6px', borderRadius: 10, background: app.flowType === 'sticker' ? 'rgba(217,119,6,0.1)' : 'rgba(124,58,237,0.1)', color: app.flowType === 'sticker' ? '#d97706' : '#7c3aed' }}>
+                          {app.flowType === 'sticker' ? '📮 Sticker' : '🌐 e-Visa'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 14px' }}>
+                        <div style={{ fontWeight: 700, color: '#059669' }}>{app.guaranteedDeliveryDate || 'Standard'}</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Guaranteed Date</div>
+                      </td>
+                      <td style={{ padding: '12px 14px', fontWeight: 800 }}>
+                        {formatPrice(app.totalAmountUSD || 0)}
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 400 }}>
+                          Gov: ${app.govFeeUSD || 0} + Atlys: ${app.platformFeeUSD || 0}
+                        </div>
+                      </td>
+                      <td style={{ padding: '12px 14px' }}>
+                        <select
+                          value={app.status}
+                          onChange={e => updateVisaApplicationStatus(app.trackingId, e.target.value as VisaApplicationStatus, 'Status updated by Super Admin')}
+                          style={{
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            border: '1px solid var(--border-color)',
+                            background: app.status === 'approved' ? 'rgba(16,185,129,0.1)' : app.status === 'embassy_processing' ? 'rgba(59,130,246,0.1)' : 'var(--bg-card-subtle)',
+                            color: app.status === 'approved' ? '#10b981' : app.status === 'embassy_processing' ? '#3b82f6' : 'var(--text-main)',
+                            fontSize: '0.8rem',
+                            fontWeight: 700
+                          }}
+                        >
+                          <option value="draft">Draft</option>
+                          <option value="docs_uploaded">Docs Uploaded</option>
+                          <option value="ocr_verified">OCR Verified</option>
+                          <option value="embassy_processing">Embassy Processing</option>
+                          <option value="approved">Approved & Issued</option>
+                          <option value="rejected">Rejected</option>
+                        </select>
+                      </td>
+                      <td style={{ padding: '12px 14px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        {app.doorstepAddress ? (
+                          <div>
+                            <span style={{ fontWeight: 700, color: '#d97706' }}>📦 Doorstep:</span> {app.doorstepAddress.city} ({app.doorstepAddress.pickupSlot})
+                          </div>
+                        ) : (
+                          <span>100% Digital e-Visa</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Sub-section C: Destination Catalog Management */}
+          <div className="card" style={{ padding: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-heading)', margin: 0 }}>
+                  Destination Catalog ({visaDestinations.length} Countries)
+                </h3>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                  Manage active countries, SLA guarantee turnarounds, taglines, and sticker visa options.
+                </p>
+              </div>
+
+              <button 
+                className="btn btn-sm btn-primary"
+                style={{ background: '#7c3aed', borderColor: '#7c3aed', display: 'flex', alignItems: 'center', gap: 6 }}
+                onClick={() => setShowAddDestModal(true)}
+              >
+                <Plus size={14} /> Add New Destination
+              </button>
+            </div>
+
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-card-subtle)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Country</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Category</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>SLA Guarantee</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Fastest Turnaround</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Sticker Support</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Tagline / Refund Policy</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visaDestinations.map(d => {
+                    const isEditing = editingDestinationId === d.id;
+                    return (
+                      <tr key={d.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '12px 14px', fontWeight: 800 }}>
+                          <span style={{ fontSize: '1.4rem', marginRight: 8 }}>{d.flag}</span>
+                          {d.countryName}
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 400 }}>Code: {d.countryCode}</div>
+                        </td>
+
+                        <td style={{ padding: '12px 14px' }}>
+                          {isEditing ? (
+                            <select
+                              className="form-select"
+                              style={{ padding: '3px 6px', fontSize: '0.78rem' }}
+                              value={editDestForm.category || 'popular'}
+                              onChange={e => setEditDestForm({ ...editDestForm, category: e.target.value as VisaCategory })}
+                            >
+                              <option value="popular">Popular</option>
+                              <option value="instant_evisa">Instant e-Visa</option>
+                              <option value="sticker">Sticker Visa</option>
+                              <option value="on_arrival">On Arrival</option>
+                            </select>
+                          ) : (
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: 'var(--bg-card-subtle)' }}>
+                              {d.category || 'popular'}
+                            </span>
+                          )}
+                        </td>
+
+                        <td style={{ padding: '12px 14px' }}>
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              className="form-input"
+                              style={{ width: 70, padding: '3px 6px', fontSize: '0.8rem' }}
+                              value={editDestForm.guaranteeSlaDays || 3}
+                              onChange={e => setEditDestForm({ ...editDestForm, guaranteeSlaDays: parseInt(e.target.value) || 1 })}
+                            />
+                          ) : (
+                            <span style={{ fontWeight: 700, color: '#059669' }}>
+                              {d.guaranteeSlaDays || 3} Days
+                            </span>
+                          )}
+                        </td>
+
+                        <td style={{ padding: '12px 14px' }}>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              className="form-input"
+                              style={{ padding: '3px 6px', fontSize: '0.8rem' }}
+                              value={editDestForm.fastestTurnaround || ''}
+                              onChange={e => setEditDestForm({ ...editDestForm, fastestTurnaround: e.target.value })}
+                            />
+                          ) : (
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-heading)' }}>
+                              {d.fastestTurnaround || '—'}
+                            </span>
+                          )}
+                        </td>
+
+                        <td style={{ padding: '12px 14px' }}>
+                          {isEditing ? (
+                            <input
+                              type="checkbox"
+                              checked={editDestForm.supportsStickerVisa ?? false}
+                              onChange={e => setEditDestForm({ ...editDestForm, supportsStickerVisa: e.target.checked })}
+                              style={{ width: 16, height: 16 }}
+                            />
+                          ) : (
+                            <span>{d.supportsStickerVisa ? '✅ Supported' : '❌ No'}</span>
+                          )}
+                        </td>
+
+                        <td style={{ padding: '12px 14px', fontSize: '0.75rem', color: 'var(--text-muted)', maxWidth: 200 }}>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              className="form-input"
+                              style={{ padding: '3px 6px', fontSize: '0.78rem' }}
+                              value={editDestForm.tagline || ''}
+                              onChange={e => setEditDestForm({ ...editDestForm, tagline: e.target.value })}
+                            />
+                          ) : (
+                            <div>{d.tagline || '—'}</div>
+                          )}
+                        </td>
+
+                        <td style={{ padding: '12px 14px' }}>
+                          {isEditing ? (
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button
+                                className="btn btn-sm btn-primary"
+                                style={{ padding: '2px 8px', fontSize: '0.75rem' }}
+                                onClick={() => handleSaveEditDestination(d.id)}
+                              >
+                                Save
+                              </button>
+                              <button
+                                className="btn btn-sm btn-secondary"
+                                style={{ padding: '2px 8px', fontSize: '0.75rem' }}
+                                onClick={() => setEditingDestinationId(null)}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button
+                                className="btn btn-sm btn-secondary"
+                                style={{ padding: '3px 6px' }}
+                                title="Edit Destination"
+                                onClick={() => handleStartEditDestination(d)}
+                              >
+                                <Edit3 size={13} />
+                              </button>
+                              <button
+                                className="btn btn-sm btn-secondary"
+                                style={{ padding: '3px 6px', color: '#ef4444' }}
+                                title="Delete Destination"
+                                onClick={() => {
+                                  if (confirm(`Are you sure you want to remove ${d.countryName}?`)) {
+                                    deleteVisaDestination(d.id);
+                                  }
+                                }}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Add Destination Modal */}
+          {showAddDestModal && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
+              <div className="card" style={{ width: '100%', maxWidth: 540, maxHeight: '90vh', overflowY: 'auto', padding: '1.75rem' }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '1rem', color: '#7c3aed' }}>
+                  Add New Visa Destination
+                </h3>
+
+                <form onSubmit={handleCreateNewDestination} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Country Name *</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        required
+                        value={newDestForm.countryName}
+                        onChange={e => setNewDestForm({ ...newDestForm, countryName: e.target.value })}
+                        placeholder="e.g. South Korea"
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Country Code</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={newDestForm.countryCode}
+                        onChange={e => setNewDestForm({ ...newDestForm, countryCode: e.target.value })}
+                        placeholder="e.g. KOR"
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: '0.75rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Flag</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={newDestForm.flag}
+                        onChange={e => setNewDestForm({ ...newDestForm, flag: e.target.value })}
+                        placeholder="🇰🇷"
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Category</label>
+                      <select
+                        className="form-select"
+                        value={newDestForm.category}
+                        onChange={e => setNewDestForm({ ...newDestForm, category: e.target.value as VisaCategory })}
+                      >
+                        <option value="instant_evisa">Instant e-Visa</option>
+                        <option value="popular">Popular</option>
+                        <option value="sticker">Sticker Visa</option>
+                        <option value="on_arrival">On Arrival</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">SLA Guarantee (Days)</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        min="1"
+                        value={newDestForm.guaranteeSlaDays}
+                        onChange={e => setNewDestForm({ ...newDestForm, guaranteeSlaDays: parseInt(e.target.value) || 1 })}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Fastest Turnaround</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={newDestForm.fastestTurnaround}
+                        onChange={e => setNewDestForm({ ...newDestForm, fastestTurnaround: e.target.value })}
+                        placeholder="e.g. 12 Hours"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Tagline</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={newDestForm.tagline}
+                      onChange={e => setNewDestForm({ ...newDestForm, tagline: e.target.value })}
+                      placeholder="e.g. Official K-ETA electronic travel authority"
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Rejection / Delay Refund Policy</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={newDestForm.rejectionRefundPolicy}
+                      onChange={e => setNewDestForm({ ...newDestForm, rejectionRefundPolicy: e.target.value })}
+                      placeholder="e.g. 100% Platform Fee Refund on Delay"
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input
+                      type="checkbox"
+                      id="supportsStickerCheck"
+                      checked={newDestForm.supportsStickerVisa ?? false}
+                      onChange={e => setNewDestForm({ ...newDestForm, supportsStickerVisa: e.target.checked })}
+                      style={{ width: 16, height: 16 }}
+                    />
+                    <label htmlFor="supportsStickerCheck" style={{ fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
+                      Supports Embassy Physical Sticker Visa (Doorstep Concierge)
+                    </label>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => setShowAddDestModal(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
+                      style={{ background: '#7c3aed', borderColor: '#7c3aed' }}
+                    >
+                      Create Destination
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+        </div>
+      )}
+
+      {/* TAB 5: Thomas Cook Holiday Operations & Catalog */}
+      {activeAdminTab === 'holidays' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          
+          {/* Sub-section A: Global Holiday Engine Config */}
+          <div className="card" style={{ padding: '1.5rem', borderLeft: '4px solid #d97706' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#d97706', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Palmtree size={20} /> Thomas Cook Holiday Engine Settings & Wholesale Margins
+                </h3>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                  Configure wholesale-to-retail markups, group discounts, instant booking status, and customer service hotlines.
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveHolidayEngine} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Partner Retail Markup (%)</label>
+                <input 
+                  type="number" 
+                  className="form-input"
+                  min="0"
+                  step="0.5"
+                  value={holidayEngineConfig.partnerMarkupPercent}
+                  onChange={e => setHolidayEngineConfig({ ...holidayEngineConfig, partnerMarkupPercent: parseFloat(e.target.value) || 0 })}
+                />
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>Added automatically onto wholesale supplier rates</div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Group Discount (4+ Pax) (%)</label>
+                <input 
+                  type="number" 
+                  className="form-input"
+                  min="0"
+                  step="0.5"
+                  value={holidayEngineConfig.groupDiscountPercent}
+                  onChange={e => setHolidayEngineConfig({ ...holidayEngineConfig, groupDiscountPercent: parseFloat(e.target.value) || 0 })}
+                />
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>Applied automatically during customer checkout</div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Thomas Cook Helpline</label>
+                <input 
+                  type="text" 
+                  className="form-input"
+                  value={holidayEngineConfig.supportHelpline}
+                  onChange={e => setHolidayEngineConfig({ ...holidayEngineConfig, supportHelpline: e.target.value })}
+                />
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>Official Toll-Free helpline shown on brochures</div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">WhatsApp Leads Hotline</label>
+                <input 
+                  type="text" 
+                  className="form-input"
+                  value={holidayEngineConfig.whatsappInquiryNumber}
+                  onChange={e => setHolidayEngineConfig({ ...holidayEngineConfig, whatsappInquiryNumber: e.target.value })}
+                />
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>Direct sales agent WhatsApp link</div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <label className="form-label" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input 
+                    type="checkbox" 
+                    checked={holidayEngineConfig.tourManagerIncludedByDefault}
+                    onChange={e => setHolidayEngineConfig({ ...holidayEngineConfig, tourManagerIncludedByDefault: e.target.checked })}
+                    style={{ width: 18, height: 18, accentColor: '#d97706' }}
+                  />
+                  <span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>Dedicated Tour Manager Included</span>
+                </label>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Displays Thomas Cook Tour Manager badge across packages</div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <label className="form-label" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input 
+                    type="checkbox" 
+                    checked={holidayEngineConfig.enableInstantBooking}
+                    onChange={e => setHolidayEngineConfig({ ...holidayEngineConfig, enableInstantBooking: e.target.checked })}
+                    style={{ width: 18, height: 18, accentColor: '#d97706' }}
+                  />
+                  <span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>Enable Instant Online Booking</span>
+                </label>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Allows customers to book packages directly without prior inquiry</div>
+              </div>
+
+              <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '0.5rem' }}>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ background: '#d97706', borderColor: '#d97706', padding: '0.75rem 1.75rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <Save size={16} /> Save Holiday Engine Configuration
+                </button>
+                {savedHolidayEngineSuccess && (
+                  <span style={{ color: '#10b981', fontWeight: 700, fontSize: '0.85rem' }}>
+                    ✓ Configuration saved! Reflected live on Thomas Cook Holiday Desk.
+                  </span>
+                )}
+              </div>
+            </form>
+          </div>
+
+          {/* Sub-section B: Customer Holiday Bookings & Lead Pipeline */}
+          <div className="card" style={{ padding: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-heading)', margin: 0 }}>
+                  Holiday Bookings & Customized Inquiries ({holidayBookings.length})
+                </h3>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                  Manage reservations, review passenger details, and advance status through the Thomas Cook booking pipeline.
+                </p>
+              </div>
+
+              {/* Status Filter */}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {['all', 'inquiry_received', 'customizing', 'quote_sent', 'confirmed', 'cancelled'].map(st => (
+                  <button
+                    key={st}
+                    className={`btn btn-sm ${holidayBookingStatusFilter === st ? 'btn-primary' : 'btn-secondary'}`}
+                    style={holidayBookingStatusFilter === st ? { background: '#d97706', borderColor: '#d97706' } : {}}
+                    onClick={() => setHolidayBookingStatusFilter(st)}
+                  >
+                    {st === 'all' ? 'All' : st.replace('_', ' ').toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-card-subtle)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Booking Ref</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Package & Destination</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Customer & Contact</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Schedule & Pax</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Revenue Breakdown</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Booking Status</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredHolidayBookings.map(b => (
+                    <tr key={b.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <td style={{ padding: '12px 14px', fontWeight: 800, color: '#d97706' }}>
+                        {b.bookingReference}
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400 }}>{b.createdAt}</div>
+                      </td>
+
+                      <td style={{ padding: '12px 14px' }}>
+                        <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{b.packageTitle}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>📍 {b.destination}</div>
+                        <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 6px', borderRadius: 10, background: b.destinationType === 'domestic' ? 'rgba(5,150,105,0.1)' : 'rgba(217,119,6,0.1)', color: b.destinationType === 'domestic' ? '#059669' : '#d97706' }}>
+                          {b.destinationType === 'domestic' ? '🇮🇳 Domestic' : '🌍 International'}
+                        </span>
+                      </td>
+
+                      <td style={{ padding: '12px 14px' }}>
+                        <div style={{ fontWeight: 700 }}>{b.customerName}</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{b.customerEmail}</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--brand-blue)' }}>{b.customerPhone}</div>
+                      </td>
+
+                      <td style={{ padding: '12px 14px' }}>
+                        <div style={{ fontWeight: 700 }}>{b.travelDate}</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Ex-{b.departureCity}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-main)', marginTop: 2 }}>
+                          {b.paxAdults} Adults {b.paxChildren > 0 ? `+ ${b.paxChildren} Kids` : ''} ({b.selectedHotelTier})
+                        </div>
+                      </td>
+
+                      <td style={{ padding: '12px 14px', fontWeight: 800 }}>
+                        <div style={{ fontSize: '1rem', color: '#d97706' }}>{formatPrice(b.totalAmountUSD)}</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 400 }}>
+                          Wholesale: ${b.wholesaleCostUSD} • Net: +${b.markupAmountUSD}
+                        </div>
+                      </td>
+
+                      <td style={{ padding: '12px 14px' }}>
+                        <select
+                          value={b.status}
+                          onChange={e => updateHolidayBookingStatus(b.bookingReference, e.target.value as HolidayBookingStatus, 'Status updated by Super Admin')}
+                          style={{
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            border: '1px solid var(--border-color)',
+                            background: b.status === 'confirmed' ? 'rgba(16,185,129,0.1)' : b.status === 'quote_sent' ? 'rgba(59,130,246,0.1)' : 'var(--bg-card-subtle)',
+                            color: b.status === 'confirmed' ? '#10b981' : b.status === 'quote_sent' ? '#3b82f6' : 'var(--text-main)',
+                            fontSize: '0.8rem',
+                            fontWeight: 700
+                          }}
+                        >
+                          <option value="inquiry_received">Inquiry Received</option>
+                          <option value="customizing">Customizing Plan</option>
+                          <option value="quote_sent">Quote Sent</option>
+                          <option value="confirmed">Confirmed & Paid</option>
+                          <option value="cancelled">Cancelled</option>
+                        </select>
+                      </td>
+
+                      <td style={{ padding: '12px 14px' }}>
+                        <a
+                          href={`https://wa.me/${b.customerPhone.replace(/[^0-9]/g, '')}?text=Hello%20${encodeURIComponent(b.customerName)}%2C%20following%20up%20on%20your%20Thomas%20Cook%20Holiday%20Booking%20%23${b.bookingReference}%20for%20${encodeURIComponent(b.packageTitle)}%21`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ background: '#25D366', color: '#fff', padding: '4px 8px', borderRadius: '4px', textDecoration: 'none', fontSize: '0.75rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                        >
+                          <MessageSquare size={12} /> WhatsApp
+                        </a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Sub-section C: Holiday Packages Catalog Management */}
+          <div className="card" style={{ padding: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-heading)', margin: 0 }}>
+                  Holiday Packages Catalog ({holidayPackages.length} Active Packages)
+                </h3>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                  Manage titles, destinations, wholesale rates, live selling prices, and itineraries.
+                </p>
+              </div>
+
+              <button 
+                className="btn btn-sm btn-primary"
+                style={{ background: '#d97706', borderColor: '#d97706', display: 'flex', alignItems: 'center', gap: 6 }}
+                onClick={() => setShowAddHolidayModal(true)}
+              >
+                <Plus size={14} /> Add New Holiday Package
+              </button>
+            </div>
+
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-card-subtle)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Package</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Type & Region</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Duration</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Wholesale Cost</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Live Selling Price</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Promotions</th>
+                    <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {holidayPackages.map(pkg => {
+                    const isEditing = editingHolidayId === pkg.id;
+                    const sellingPrice = Math.round(pkg.basePrice * (1 + adminHolidayConfig.partnerMarkupPercent / 100));
+
+                    return (
+                      <tr key={pkg.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '12px 14px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <img
+                              src={pkg.heroImage}
+                              alt={pkg.title}
+                              style={{ width: 44, height: 44, borderRadius: 6, objectFit: 'cover' }}
+                            />
+                            <div>
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  className="form-input"
+                                  style={{ padding: '3px 6px', fontSize: '0.8rem', width: 220 }}
+                                  value={editHolidayForm.title || ''}
+                                  onChange={e => setEditHolidayForm({ ...editHolidayForm, title: e.target.value })}
+                                />
+                              ) : (
+                                <div style={{ fontWeight: 800, color: 'var(--text-heading)' }}>{pkg.title}</div>
+                              )}
+                              <div style={{ fontSize: '0.72rem', color: '#d97706', fontWeight: 600 }}>{pkg.destination}</div>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td style={{ padding: '12px 14px' }}>
+                          {isEditing ? (
+                            <select
+                              className="form-select"
+                              style={{ padding: '3px 6px', fontSize: '0.78rem' }}
+                              value={editHolidayForm.destinationType || 'domestic'}
+                              onChange={e => setEditHolidayForm({ ...editHolidayForm, destinationType: e.target.value as HolidayDestinationType })}
+                            >
+                              <option value="domestic">Domestic India</option>
+                              <option value="international">International</option>
+                            </select>
+                          ) : (
+                            <div>
+                              <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: pkg.destinationType === 'domestic' ? 'rgba(5,150,105,0.1)' : 'rgba(217,119,6,0.1)', color: pkg.destinationType === 'domestic' ? '#059669' : '#d97706' }}>
+                                {pkg.destinationType === 'domestic' ? '🇮🇳 Domestic' : '🌍 International'}
+                              </span>
+                              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>{pkg.region || '—'}</div>
+                            </div>
+                          )}
+                        </td>
+
+                        <td style={{ padding: '12px 14px' }}>
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              className="form-input"
+                              style={{ width: 65, padding: '3px 6px', fontSize: '0.8rem' }}
+                              value={editHolidayForm.durationDays || 5}
+                              onChange={e => setEditHolidayForm({ ...editHolidayForm, durationDays: parseInt(e.target.value) || 1 })}
+                            />
+                          ) : (
+                            <span style={{ fontWeight: 700 }}>{pkg.durationDays}D / {pkg.durationNights || pkg.durationDays - 1}N</span>
+                          )}
+                        </td>
+
+                        <td style={{ padding: '12px 14px' }}>
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              className="form-input"
+                              style={{ width: 80, padding: '3px 6px', fontSize: '0.8rem' }}
+                              value={editHolidayForm.wholesaleCost || 0}
+                              onChange={e => setEditHolidayForm({ ...editHolidayForm, wholesaleCost: parseFloat(e.target.value) || 0 })}
+                            />
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)' }}>{formatPrice(pkg.wholesaleCost)}</span>
+                          )}
+                        </td>
+
+                        <td style={{ padding: '12px 14px' }}>
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              className="form-input"
+                              style={{ width: 80, padding: '3px 6px', fontSize: '0.8rem' }}
+                              value={editHolidayForm.basePrice || 0}
+                              onChange={e => setEditHolidayForm({ ...editHolidayForm, basePrice: parseFloat(e.target.value) || 0 })}
+                            />
+                          ) : (
+                            <div>
+                              <div style={{ fontWeight: 800, color: '#d97706' }}>{formatPrice(sellingPrice)}</div>
+                              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Base: ${pkg.basePrice}</div>
+                            </div>
+                          )}
+                        </td>
+
+                        <td style={{ padding: '12px 14px' }}>
+                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                            {pkg.isBestSeller && (
+                              <span style={{ fontSize: '0.68rem', fontWeight: 800, background: '#d97706', color: '#fff', padding: '2px 6px', borderRadius: 4 }}>
+                                BEST SELLER
+                              </span>
+                            )}
+                            {pkg.discountPercent && (
+                              <span style={{ fontSize: '0.68rem', fontWeight: 800, background: '#ef4444', color: '#fff', padding: '2px 6px', borderRadius: 4 }}>
+                                -{pkg.discountPercent}%
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        <td style={{ padding: '12px 14px' }}>
+                          {isEditing ? (
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button
+                                className="btn btn-sm btn-primary"
+                                style={{ padding: '2px 8px', fontSize: '0.75rem', background: '#d97706', borderColor: '#d97706' }}
+                                onClick={() => handleSaveEditHoliday(pkg.id)}
+                              >
+                                Save
+                              </button>
+                              <button
+                                className="btn btn-sm btn-secondary"
+                                style={{ padding: '2px 8px', fontSize: '0.75rem' }}
+                                onClick={() => setEditingHolidayId(null)}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button
+                                className="btn btn-sm btn-secondary"
+                                style={{ padding: '3px 6px' }}
+                                title="Edit Package"
+                                onClick={() => handleStartEditHoliday(pkg)}
+                              >
+                                <Edit3 size={13} />
+                              </button>
+                              <button
+                                className="btn btn-sm btn-secondary"
+                                style={{ padding: '3px 6px', color: '#ef4444' }}
+                                title="Delete Package"
+                                onClick={() => {
+                                  if (confirm(`Are you sure you want to delete ${pkg.title}?`)) {
+                                    deleteHolidayPackage(pkg.id);
+                                  }
+                                }}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Add Holiday Package Modal */}
+          {showAddHolidayModal && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
+              <div className="card" style={{ width: '100%', maxWidth: 580, maxHeight: '90vh', overflowY: 'auto', padding: '1.75rem' }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '1rem', color: '#d97706' }}>
+                  Add New Thomas Cook Holiday Package
+                </h3>
+
+                <form onSubmit={handleCreateNewHoliday} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Package Title *</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      required
+                      value={newHolidayForm.title}
+                      onChange={e => setNewHolidayForm({ ...newHolidayForm, title: e.target.value })}
+                      placeholder="e.g. Exotic Andaman Island Coral Explorer"
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Destination *</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        required
+                        value={newHolidayForm.destination}
+                        onChange={e => setNewHolidayForm({ ...newHolidayForm, destination: e.target.value })}
+                        placeholder="e.g. Andaman, India"
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Destination Type</label>
+                      <select
+                        className="form-select"
+                        value={newHolidayForm.destinationType}
+                        onChange={e => setNewHolidayForm({ ...newHolidayForm, destinationType: e.target.value as any })}
+                      >
+                        <option value="domestic">Domestic India</option>
+                        <option value="international">International</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Duration (Days)</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        min="1"
+                        value={newHolidayForm.durationDays}
+                        onChange={e => setNewHolidayForm({ ...newHolidayForm, durationDays: parseInt(e.target.value) || 1 })}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Nights</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        min="0"
+                        value={newHolidayForm.durationNights}
+                        onChange={e => setNewHolidayForm({ ...newHolidayForm, durationNights: parseInt(e.target.value) || 0 })}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Wholesale Cost (USD)</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        min="0"
+                        value={newHolidayForm.wholesaleCost}
+                        onChange={e => setNewHolidayForm({ ...newHolidayForm, wholesaleCost: parseFloat(e.target.value) || 0 })}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Base Retail Price (USD)</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        min="0"
+                        value={newHolidayForm.basePrice}
+                        onChange={e => setNewHolidayForm({ ...newHolidayForm, basePrice: parseFloat(e.target.value) || 0 })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Hero Image URL</label>
+                    <input
+                      type="url"
+                      className="form-input"
+                      value={newHolidayForm.heroImage}
+                      onChange={e => setNewHolidayForm({ ...newHolidayForm, heroImage: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input
+                      type="checkbox"
+                      id="isBestSellerCheck"
+                      checked={newHolidayForm.isBestSeller ?? false}
+                      onChange={e => setNewHolidayForm({ ...newHolidayForm, isBestSeller: e.target.checked })}
+                      style={{ width: 16, height: 16 }}
+                    />
+                    <label htmlFor="isBestSellerCheck" style={{ fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
+                      Mark as "Best Seller" on consumer portal
+                    </label>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => setShowAddHolidayModal(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
+                      style={{ background: '#d97706', borderColor: '#d97706' }}
+                    >
+                      Create Package
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+        </div>
+      )}
+
+      {/* TAB 6: Customer Inquiries & CRM */}
       {activeAdminTab === 'leads' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div className="card" style={{ padding: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
             <div>
-              <h3 style={{ fontSize: '1.2rem', color: '#ffffff' }}>Staff Inbound Lead Assignment & Pipeline</h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                Every inbound inquiry lands with a dedicated staff officer with active SLA window tracking.
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-heading)', margin: 0 }}>
+                Customer Inquiry Pipeline & CRM
+              </h3>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                Inquiries captured from the Chatbot, Customize Trip AI, and Direct Inquiries.
               </p>
             </div>
           </div>
 
-          {/* Staff Leaderboard */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
-            {staff.map((s) => (
-              <div key={s.id} className="glass-card" style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <img src={s.avatar} alt={s.name} style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover' }} />
-                <div>
-                  <div style={{ fontWeight: 700, color: '#ffffff', fontSize: '0.95rem' }}>{s.name}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{s.role}</div>
-                  <div style={{ fontSize: '0.75rem', color: '#34d399', fontWeight: 600, marginTop: '2px' }}>
-                    Conversion Rate: {s.conversionRate}% ({s.conversionsThisMonth} closed)
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Inbound Leads Table */}
-          <div className="data-table-container">
-            <table className="data-table">
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
               <thead>
-                <tr>
-                  <th>Client Name</th>
-                  <th>Vertical</th>
-                  <th>Source / Campaign</th>
-                  <th>Assigned Officer</th>
-                  <th>Est. Value</th>
-                  <th>Pipeline Status (Sec 4)</th>
-                  <th>Reassign Staff</th>
+                <tr style={{ background: 'var(--bg-card-subtle)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>
+                  <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Customer</th>
+                  <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Contact</th>
+                  <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Service & Vertical</th>
+                  <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Estimated Value</th>
+                  <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Pipeline Status</th>
+                  <th style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {leads.map((lead) => (
-                  <tr key={lead.id}>
-                    <td>
-                      <div style={{ fontWeight: 600 }}>{lead.clientName}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>{lead.clientPhone}</div>
+                {leads.map(lead => (
+                  <tr key={lead.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                    <td style={{ padding: '12px 14px', fontWeight: 700, color: 'var(--text-heading)' }}>
+                      {lead.clientName}
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400 }}>Source: {lead.source}</div>
                     </td>
-                    <td><span className="badge badge-teal">{lead.vertical}</span></td>
-                    <td>
-                      <div>{lead.source}</div>
-                      <div style={{ fontSize: '0.7rem', color: '#60a5fa' }}>{lead.utmCampaign}</div>
+                    <td style={{ padding: '12px 14px' }}>
+                      <div style={{ fontWeight: 600, color: 'var(--brand-blue)' }}>{lead.clientPhone}</div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{lead.clientEmail}</div>
                     </td>
-                    <td style={{ fontWeight: 600, color: '#ffffff' }}>{lead.assignedStaffName}</td>
-                    <td style={{ fontWeight: 700, color: 'var(--gold-400)' }}>{formatPrice(lead.estimatedValue)}</td>
-                    <td>
-                      <select 
-                        className="form-select"
-                        style={{ padding: '0.3rem 0.5rem', fontSize: '0.8rem' }}
+                    <td style={{ padding: '12px 14px' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', background: 'var(--bg-card-subtle)' }}>
+                        {lead.vertical}
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px 14px', fontWeight: 800 }}>
+                      {formatPrice(lead.estimatedValue)}
+                    </td>
+                    <td style={{ padding: '12px 14px' }}>
+                      <select
                         value={lead.pipelineStatus}
-                        onChange={(e) => updateLeadPipeline(lead.id, e.target.value as LeadPipelineStatus)}
+                        onChange={e => updateLeadPipeline(lead.id, e.target.value as any)}
+                        style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-card-subtle)', color: 'var(--text-main)', fontSize: '0.8rem', fontWeight: 600 }}
                       >
                         <option value="New">New</option>
                         <option value="Contacted">Contacted</option>
@@ -354,258 +1837,21 @@ export const SuperAdminPanel: React.FC = () => {
                         <option value="Lost">Lost</option>
                       </select>
                     </td>
-                    <td>
-                      <select 
-                        className="form-select"
-                        style={{ padding: '0.3rem 0.5rem', fontSize: '0.8rem' }}
-                        value={lead.assignedStaffId}
-                        onChange={(e) => assignLeadToStaff(lead.id, e.target.value)}
+                    <td style={{ padding: '12px 14px' }}>
+                      <a
+                        href={`https://wa.me/${lead.clientPhone.replace(/[^0-9]/g, '')}?text=Hello%20${encodeURIComponent(lead.clientName)}%2C%20following%20up%20on%20your%20TravelPulse%20inquiry%21`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ background: '#25D366', color: '#fff', padding: '4px 8px', borderRadius: '4px', textDecoration: 'none', fontSize: '0.75rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                       >
-                        {staff.map(st => (
-                          <option key={st.id} value={st.id}>{st.name}</option>
-                        ))}
-                      </select>
+                        WhatsApp
+                      </a>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </div>
-      )}
-
-      {/* TAB 4: Vendor Payables Ledger & Reconciliation (Sec 5.4) */}
-      {activeAdminTab === 'vendor_ledger' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <div>
-            <h3 style={{ fontSize: '1.2rem', color: '#ffffff' }}>Vendor Payment Ledger & Reconciliation</h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Tracks exact payables owed to hotels, airlines, ground operators, and visa authorities with due-date alerts.
-            </p>
-          </div>
-
-          <div className="data-table-container">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Vendor Entity</th>
-                  <th>Category</th>
-                  <th>Total Booked</th>
-                  <th>Amount Paid</th>
-                  <th>Pending Balance</th>
-                  <th>Due Date & Alert</th>
-                  <th>Recon Status</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {vendorLedger.map((v) => (
-                  <tr key={v.id}>
-                    <td style={{ fontWeight: 600, color: '#ffffff' }}>{v.vendorName}</td>
-                    <td><span className="badge badge-teal">{v.vendorType}</span></td>
-                    <td>{formatPrice(v.totalBookedAmount)}</td>
-                    <td style={{ color: '#34d399' }}>{formatPrice(v.amountPaid)}</td>
-                    <td style={{ fontWeight: 700, color: v.pendingBalance > 0 ? 'var(--gold-400)' : '#34d399' }}>
-                      {formatPrice(v.pendingBalance)}
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        {v.isOverdue && <AlertTriangle size={14} color="#f87171" />}
-                        <span style={{ color: v.isOverdue ? '#f87171' : 'var(--text-main)', fontSize: '0.8rem', fontWeight: v.isOverdue ? 700 : 400 }}>
-                          {v.nextDueDate} {v.isOverdue ? '(OVERDUE)' : ''}
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      <span className={`badge ${v.reconciliationStatus === 'Reconciled' ? 'badge-emerald' : 'badge-amber'}`}>
-                        {v.reconciliationStatus}
-                      </span>
-                    </td>
-                    <td>
-                      {v.pendingBalance > 0 ? (
-                        <button 
-                          className="btn btn-sm btn-primary-teal"
-                          onClick={() => {
-                            setPayingVendorId(v.id);
-                            setPaymentAmount(Math.min(v.pendingBalance, 10000));
-                          }}
-                        >
-                          Record Payment
-                        </button>
-                      ) : (
-                        <span style={{ fontSize: '0.75rem', color: '#34d399' }}>Settled in Full</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Record Vendor Payment Modal */}
-          {payingVendorId && (
-            <div className="modal-backdrop" onClick={() => setPayingVendorId(null)}>
-              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                <div className="modal-header">
-                  <h3 style={{ fontSize: '1.2rem' }}>Record Vendor Wire Remittance</h3>
-                  <button className="modal-close-btn" onClick={() => setPayingVendorId(null)}>✕</button>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Payment Amount ($ USD)</label>
-                  <input 
-                    type="number" 
-                    className="form-input" 
-                    value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(parseInt(e.target.value) || 0)}
-                  />
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
-                  <button className="btn btn-secondary" onClick={() => setPayingVendorId(null)}>Cancel</button>
-                  <button className="btn btn-primary-teal" onClick={() => handleRecordPayment(payingVendorId)}>
-                    Confirm Wire & Write to Audit Log
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* TAB 5: Contracted Offline Rates (Sec 4) */}
-      {activeAdminTab === 'offline_rates' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-            <div>
-              <h3 style={{ fontSize: '1.2rem', color: '#ffffff' }}>Offline / Manual Contracted Rate Sheets</h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                Enables hotels and VIP transport vendors with no live API to flow through the same markup engine.
-              </p>
-            </div>
-
-            <button 
-              className="btn btn-primary-teal btn-sm"
-              onClick={() => setShowAddRateModal(true)}
-            >
-              <Plus size={14} /> Add Contracted Offline Rate
-            </button>
-          </div>
-
-          <div className="data-table-container">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Vendor Partner</th>
-                  <th>Service Category</th>
-                  <th>Contract Validity</th>
-                  <th>Net Negotiated Rate</th>
-                  <th>Source Tag</th>
-                  <th>Alert Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {offlineRates.map((rate) => (
-                  <tr key={rate.id}>
-                    <td style={{ fontWeight: 600, color: '#ffffff' }}>{rate.vendorName}</td>
-                    <td>{rate.category}</td>
-                    <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      {rate.validFrom} to {rate.validTo}
-                    </td>
-                    <td style={{ fontWeight: 700, color: 'var(--gold-400)' }}>
-                      {formatPrice(rate.unitPrice)}
-                    </td>
-                    <td><span className="badge badge-teal">{rate.sourceTag}</span></td>
-                    <td>
-                      {rate.expiryWarning ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#f87171', fontSize: '0.75rem', fontWeight: 700 }}>
-                          <AlertTriangle size={14} /> Expires Soon!
-                        </div>
-                      ) : (
-                        <span style={{ fontSize: '0.75rem', color: '#34d399' }}>Active Contract</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Add Rate Modal */}
-          {showAddRateModal && (
-            <div className="modal-backdrop" onClick={() => setShowAddRateModal(false)}>
-              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                <div className="modal-header">
-                  <h3 style={{ fontSize: '1.2rem' }}>Add Negotiated Offline Rate Sheet</h3>
-                  <button className="modal-close-btn" onClick={() => setShowAddRateModal(false)}>✕</button>
-                </div>
-
-                <form onSubmit={handleAddOfflineRate} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <div className="form-group">
-                    <label className="form-label">Vendor Name</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      value={newRateForm.vendorName}
-                      onChange={(e) => setNewRateForm({ ...newRateForm, vendorName: e.target.value })}
-                      required
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Service Category</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      value={newRateForm.category}
-                      onChange={(e) => setNewRateForm({ ...newRateForm, category: e.target.value })}
-                      required
-                    />
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                    <div className="form-group">
-                      <label className="form-label">Valid From</label>
-                      <input 
-                        type="date" 
-                        className="form-input" 
-                        value={newRateForm.validFrom}
-                        onChange={(e) => setNewRateForm({ ...newRateForm, validFrom: e.target.value })}
-                        required
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">Valid To</label>
-                      <input 
-                        type="date" 
-                        className="form-input" 
-                        value={newRateForm.validTo}
-                        onChange={(e) => setNewRateForm({ ...newRateForm, validTo: e.target.value })}
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Net Wholesale Rate (USD)</label>
-                    <input 
-                      type="number" 
-                      className="form-input" 
-                      value={newRateForm.unitPrice}
-                      onChange={(e) => setNewRateForm({ ...newRateForm, unitPrice: parseInt(e.target.value) || 0 })}
-                      required
-                    />
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
-                    <button type="button" className="btn btn-secondary" onClick={() => setShowAddRateModal(false)}>Cancel</button>
-                    <button type="submit" className="btn btn-primary-teal">Save Offline Rate Sheet</button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>

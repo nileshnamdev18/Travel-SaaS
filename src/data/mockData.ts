@@ -696,8 +696,8 @@ export const INITIAL_AUDIT_LOG: AuditLogEntry[] = [
   {
     id: 'aud-002',
     timestamp: '2026-09-22 11:22:45',
-    actorName: 'Finance Admin',
-    actorRole: 'finance_admin',
+    actorName: 'Super Admin',
+    actorRole: 'super_admin',
     action: 'Vendor Wire Remittance Recorded',
     entityType: 'Offline Rate',
     entityId: 'v-101',
@@ -708,8 +708,8 @@ export const INITIAL_AUDIT_LOG: AuditLogEntry[] = [
   {
     id: 'aud-003',
     timestamp: '2026-09-21 17:05:01',
-    actorName: 'Agency Admin',
-    actorRole: 'agency_admin',
+    actorName: 'Super Admin',
+    actorRole: 'super_admin',
     action: 'Markup Adjusted on Proposal QT-2026-0891',
     entityType: 'Markup',
     entityId: 'qt-1001',

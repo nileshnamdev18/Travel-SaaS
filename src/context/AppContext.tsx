@@ -20,8 +20,18 @@ import {
   BookingRecord,
   BookingVertical,
   CorporateTravelPolicy,
-  AdminMarkupConfig
+  AdminMarkupConfig,
+  CountryVisaInfo,
+  VisaApplicationRecord,
+  AdminVisaConfig,
+  VisaApplicationStatus,
+  HolidayPackage,
+  HolidayBookingRecord,
+  AdminHolidayConfig,
+  HolidayBookingStatus
 } from '../types';
+import { visaBackend } from '../services/visaService';
+import { holidayBackend } from '../services/holidayService';
 import {
   CURRENCIES,
   INITIAL_UMRAH_PACKAGES,
@@ -63,21 +73,44 @@ interface AppContextType {
   umrahPackages: UmrahPackage[];
   addUmrahPackage: (pkg: UmrahPackage) => void;
 
-  // Dynamic Admin Markup Engine
+  // Dynamic Admin Markup Engine (SuperAdmin)
   adminMarkup: AdminMarkupConfig;
   updateAdminMarkup: (vertical: keyof AdminMarkupConfig, value: number) => void;
   getMarkupAdjustedPrice: (basePrice: number, vertical: 'flights' | 'hotels' | 'umrah' | 'visas' | 'holidays') => number;
 
-  // Corporate Travel Policy & Approvals
+  // Corporate Travel Policy (Fallback / Admin)
   corporatePolicy: CorporateTravelPolicy;
   updateCorporatePolicy: (policy: Partial<CorporateTravelPolicy>) => void;
 
-  // Real Bookings & Approvals System
+  // Real Bookings & Customer Trips
   bookings: BookingRecord[];
   addBooking: (booking: BookingRecord) => void;
   approveBooking: (bookingId: string, note?: string) => void;
   rejectBooking: (bookingId: string, reason: string) => void;
   cancelBooking: (bookingId: string) => void;
+
+  // Atlys Visa Full-Stack Database & Admin Config
+  visaDestinations: CountryVisaInfo[];
+  updateVisaDestination: (id: string, updates: Partial<CountryVisaInfo>) => void;
+  addVisaDestination: (newDest: CountryVisaInfo) => void;
+  deleteVisaDestination: (id: string) => void;
+  visaApplications: VisaApplicationRecord[];
+  createVisaApplication: (appData: Partial<VisaApplicationRecord>) => VisaApplicationRecord;
+  updateVisaApplicationStatus: (trackingId: string, status: VisaApplicationStatus, note?: string) => void;
+  adminVisaConfig: AdminVisaConfig;
+  updateAdminVisaConfig: (cfg: Partial<AdminVisaConfig>) => void;
+  calculateGuaranteedDate: (days: number) => string;
+
+  // Thomas Cook Holidays Full-Stack Database & Admin Config
+  holidayPackages: HolidayPackage[];
+  updateHolidayPackage: (id: string, updates: Partial<HolidayPackage>) => void;
+  addHolidayPackage: (newPkg: HolidayPackage) => void;
+  deleteHolidayPackage: (id: string) => void;
+  holidayBookings: HolidayBookingRecord[];
+  createHolidayBooking: (bookingData: Partial<HolidayBookingRecord>) => HolidayBookingRecord;
+  updateHolidayBookingStatus: (bookingReference: string, status: HolidayBookingStatus, note?: string) => void;
+  adminHolidayConfig: AdminHolidayConfig;
+  updateAdminHolidayConfig: (cfg: Partial<AdminHolidayConfig>) => void;
 
   // Checkout Modal
   activeCheckout: { isOpen: boolean; item?: any; vertical?: BookingVertical };
@@ -90,39 +123,35 @@ interface AppContextType {
   isRoleModalOpen: boolean;
   setIsRoleModalOpen: (open: boolean) => void;
 
-  // B2B Agency State
-  agencyBranding: AgencyBranding;
-  updateAgencyBranding: (branding: Partial<AgencyBranding>) => void;
-  agencyWallet: AgencyWallet;
-  topUpWallet: (amount: number) => void;
-  agencyMarkup: { type: 'percentage' | 'flat'; value: number };
-  updateAgencyMarkup: (type: 'percentage' | 'flat', value: number) => void;
-  quotations: QuotationRecord[];
-  addQuotation: (quote: QuotationRecord) => void;
-  updateQuotationDelivery: (quoteId: string, channel: 'download' | 'whatsapp' | 'email') => void;
+  // Audit Trail (SuperAdmin)
+  auditLog: AuditLogEntry[];
+  logAuditAction: (action: string, entityType: AuditLogEntry['entityType'], entityId: string, prevVal: string, newVal: string) => void;
 
-  // CRM Leads & Staff
+  // Generic Dialogs & Notifications
+  activeModal: { type: string | null; data?: any };
+  openModal: (type: string, data?: any) => void;
+  closeModal: () => void;
+
+  // Stubs for legacy/B2B references so components don't crash
   leads: LeadRecord[];
   updateLeadPipeline: (leadId: string, status: LeadPipelineStatus) => void;
   assignLeadToStaff: (leadId: string, staffId: string) => void;
   staff: StaffMember[];
-
-  // Finance & Ledgers
   vendorLedger: VendorLedgerRecord[];
   recordVendorPayment: (vendorId: string, amount: number, mode: string) => void;
   offlineRates: OfflineRateSheet[];
   addOfflineRate: (rate: Omit<OfflineRateSheet, 'id'>) => void;
   invoices: InvoiceDocument[];
   createInvoice: (invoice: InvoiceDocument) => void;
-
-  // Audit Log
-  auditLog: AuditLogEntry[];
-  logAuditAction: (action: string, entityType: AuditLogEntry['entityType'], entityId: string, prevVal: string, newVal: string) => void;
-
-  // Generic Modal Dialogs
-  activeModal: { type: string | null; data?: any };
-  openModal: (type: string, data?: any) => void;
-  closeModal: () => void;
+  quotations: QuotationRecord[];
+  addQuotation: (quote: QuotationRecord) => void;
+  updateQuotationDelivery: (quoteId: string, channel: 'download' | 'whatsapp' | 'email') => void;
+  agencyBranding: AgencyBranding;
+  updateAgencyBranding: (branding: Partial<AgencyBranding>) => void;
+  agencyWallet: AgencyWallet;
+  topUpWallet: (amount: number) => void;
+  agencyMarkup: { type: 'percentage' | 'flat'; value: number };
+  updateAgencyMarkup: (type: 'percentage' | 'flat', value: number) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -143,11 +172,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
   };
 
-  // Portals & Roles
-  const [activePortal, setActivePortal] = useState<PortalType>('b2c');
+  // Only 2 roles in active use: 'customer' and 'super_admin'
+  const [activePortal, setActivePortal] = useState<PortalType>('customer');
   const [activeRole, setActiveRole] = useState<UserRole>(() => {
     const savedRole = localStorage.getItem('tp_active_role') as UserRole;
-    return savedRole || 'traveler';
+    return savedRole === 'super_admin' ? 'super_admin' : 'customer';
   });
 
   useEffect(() => {
@@ -155,7 +184,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [activeRole]);
 
   // Currency
-  const [activeCurrency, setActiveCurrency] = useState<CurrencyCode>('USD');
+  const [activeCurrency, setActiveCurrency] = useState<CurrencyCode>('INR');
 
   // Domain data
   const [flights] = useState<FlightOption[]>(INITIAL_FLIGHTS);
@@ -197,7 +226,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // Corporate Travel Policy (persisted)
+  // Corporate Travel Policy (Internal/SuperAdmin)
   const [corporatePolicy, setCorporatePolicy] = useState<CorporateTravelPolicy>(() => {
     const saved = localStorage.getItem('tp_corporate_policy');
     if (saved) {
@@ -248,7 +277,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           policyCompliance: {
             ...b.policyCompliance,
             inPolicy: true,
-            approvedBy: activeRole.replace('_', ' ').toUpperCase(),
+            approvedBy: 'SUPER ADMIN',
             approvalDate: new Date().toISOString().slice(0, 10),
             reason: note ? `${b.policyCompliance.reason || ''} [Approved: ${note}]` : b.policyCompliance.reason
           }
@@ -281,6 +310,101 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logAuditAction(`Booking Cancelled #${bookingId}`, 'Booking Approval', bookingId, 'Active', 'Cancelled by User');
   };
 
+  // Atlys Visa Full-Stack Database & Admin Config (Reactive State)
+  const [visaDestinations, setVisaDestinations] = useState<CountryVisaInfo[]>(() => visaBackend.getDestinations());
+  const [visaApplications, setVisaApplications] = useState<VisaApplicationRecord[]>(() => visaBackend.getApplications());
+  const [adminVisaConfig, setAdminVisaConfig] = useState<AdminVisaConfig>(() => visaBackend.getAdminConfig());
+
+  const updateVisaDestination = (id: string, updates: Partial<CountryVisaInfo>) => {
+    const updated = visaBackend.updateDestination(id, updates);
+    setVisaDestinations(updated);
+    logAuditAction(`Visa Destination Config Updated: ${id}`, 'Offline Rate', id, 'Prev Config', JSON.stringify(updates));
+  };
+
+  const addVisaDestination = (newDest: CountryVisaInfo) => {
+    const updated = visaBackend.addDestination(newDest);
+    setVisaDestinations(updated);
+    logAuditAction(`New Visa Destination Added: ${newDest.countryName}`, 'Offline Rate', newDest.id, 'None', newDest.countryCode);
+  };
+
+  const deleteVisaDestination = (id: string) => {
+    const updated = visaBackend.deleteDestination(id);
+    setVisaDestinations(updated);
+    logAuditAction(`Visa Destination Removed: ${id}`, 'Offline Rate', id, 'Active', 'Deleted');
+  };
+
+  const createVisaApplication = (appData: Partial<VisaApplicationRecord>): VisaApplicationRecord => {
+    const created = visaBackend.createApplication(appData);
+    setVisaApplications(visaBackend.getApplications());
+    logAuditAction(`New Visa Application Registered #${created.trackingId}`, 'Booking Approval', created.id, 'None', created.status);
+    return created;
+  };
+
+  const updateVisaApplicationStatus = (trackingId: string, status: VisaApplicationStatus, note?: string) => {
+    const updated = visaBackend.updateApplicationStatus(trackingId, status, note);
+    setVisaApplications(updated);
+    logAuditAction(`Visa Application #${trackingId} Status Set to ${status}`, 'Booking Approval', trackingId, 'Status', note || '');
+  };
+
+  const updateAdminVisaConfig = (cfg: Partial<AdminVisaConfig>) => {
+    const current = visaBackend.getAdminConfig();
+    const updated = { ...current, ...cfg };
+    visaBackend.saveAdminConfig(updated);
+    setAdminVisaConfig(updated);
+    logAuditAction('Visa Engine Global Settings Changed', 'Markup', 'visa-engine', JSON.stringify(current), JSON.stringify(updated));
+  };
+
+  const calculateGuaranteedDate = (days: number): string => {
+    return visaBackend.calculateGuaranteedDate(days);
+  };
+
+  // Thomas Cook Holidays State & Handlers
+  const [holidayPackages, setHolidayPackages] = useState<HolidayPackage[]>(() => holidayBackend.getPackages());
+  const [holidayBookings, setHolidayBookings] = useState<HolidayBookingRecord[]>(() => holidayBackend.getBookings());
+  const [adminHolidayConfig, setAdminHolidayConfig] = useState<AdminHolidayConfig>(() => holidayBackend.getAdminConfig());
+
+  const updateHolidayPackage = (id: string, updates: Partial<HolidayPackage>) => {
+    const updated = holidayBackend.updatePackage(id, updates);
+    setHolidayPackages(updated);
+    logAuditAction(`Holiday Package Updated: ${id}`, 'Offline Rate', id, 'Prev Config', JSON.stringify(updates));
+  };
+
+  const addHolidayPackage = (newPkg: HolidayPackage) => {
+    const updated = holidayBackend.addPackage(newPkg);
+    setHolidayPackages(updated);
+    logAuditAction(`New Holiday Package Added: ${newPkg.title}`, 'Offline Rate', newPkg.id, 'None', newPkg.destination);
+  };
+
+  const deleteHolidayPackage = (id: string) => {
+    const updated = holidayBackend.deletePackage(id);
+    setHolidayPackages(updated);
+    logAuditAction(`Holiday Package Removed: ${id}`, 'Offline Rate', id, 'Active', 'Deleted');
+  };
+
+  const createHolidayBooking = (bookingData: Partial<HolidayBookingRecord>): HolidayBookingRecord => {
+    const created = holidayBackend.createBooking(bookingData);
+    setHolidayBookings(holidayBackend.getBookings());
+    logAuditAction(`New Holiday Booking/Inquiry #${created.bookingReference}`, 'Booking Approval', created.id, 'None', created.status);
+    return created;
+  };
+
+  const updateHolidayBookingStatus = (bookingReference: string, status: HolidayBookingStatus, note?: string) => {
+    const updated = holidayBackend.updateBookingStatus(bookingReference, status, note);
+    setHolidayBookings(updated);
+    logAuditAction(`Holiday Booking #${bookingReference} Status Set to ${status}`, 'Booking Approval', bookingReference, 'Status', note || '');
+  };
+
+  const updateAdminHolidayConfig = (cfg: Partial<AdminHolidayConfig>) => {
+    const current = holidayBackend.getAdminConfig();
+    const updated = { ...current, ...cfg };
+    holidayBackend.saveAdminConfig(updated);
+    setAdminHolidayConfig(updated);
+    if (cfg.partnerMarkupPercent !== undefined) {
+      updateAdminMarkup('holidaysPercent', cfg.partnerMarkupPercent);
+    }
+    logAuditAction('Thomas Cook Holiday Engine Settings Changed', 'Markup', 'holiday-engine', JSON.stringify(current), JSON.stringify(updated));
+  };
+
   // Checkout modal
   const [activeCheckout, setActiveCheckout] = useState<{ isOpen: boolean; item?: any; vertical?: BookingVertical }>({
     isOpen: false
@@ -298,7 +422,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isMyTripsOpen, setIsMyTripsOpen] = useState(false);
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
 
-  // Agency, CRM, and Finance
+  // Stubs for SuperAdmin/legacy models
   const [agencyBranding, setAgencyBranding] = useState<AgencyBranding>(INITIAL_AGENCY_BRANDING);
   const [agencyWallet, setAgencyWallet] = useState<AgencyWallet>(INITIAL_AGENCY_WALLET);
   const [agencyMarkup, setAgencyMarkup] = useState<{ type: 'percentage' | 'flat'; value: number }>({
@@ -328,37 +452,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return `${config.symbol} ${Math.round(converted).toLocaleString()}`;
   };
 
-  // RBAC Permission Check
+  // 2-Role RBAC Check: customer vs super_admin
   const hasPermission = (permission: string): boolean => {
+    if (activeRole === 'super_admin') return true;
     switch (permission) {
       case 'can_book':
         return true;
-      case 'can_approve_travel':
-        return activeRole === 'agency_admin' || activeRole === 'super_admin';
-      case 'can_edit_markup':
-        return activeRole === 'super_admin';
-      case 'can_edit_agency_markup':
-        return activeRole === 'agency_admin' || activeRole === 'super_admin';
-      case 'can_edit_policy':
-        return activeRole === 'agency_admin' || activeRole === 'super_admin';
       case 'can_view_admin':
-        return activeRole === 'super_admin' || activeRole === 'finance_admin' || activeRole === 'support_agent';
-      case 'can_view_b2b':
-        return activeRole === 'agency_admin' || activeRole === 'agency_agent' || activeRole === 'super_admin';
+      case 'can_edit_markup':
+      case 'can_approve_travel':
+      case 'can_edit_policy':
+        return false;
       default:
         return false;
     }
   };
 
-  // Umrah
   const addUmrahPackage = (pkg: UmrahPackage) => {
     setUmrahPackages(prev => [pkg, ...prev]);
   };
 
-  // Agency updates
   const updateAgencyBranding = (updated: Partial<AgencyBranding>) => {
     setAgencyBranding(prev => ({ ...prev, ...updated }));
-    logAuditAction('Agency Branding Updated', 'Agency Tier', 'agency-profile', 'Previous Branding', 'Updated Branding Details');
   };
 
   const topUpWallet = (amount: number) => {
@@ -367,19 +482,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       balance: prev.balance + amount,
       availablePower: prev.availablePower + amount
     }));
-    logAuditAction('Wallet Top-up Completed', 'Commission', 'wallet-01', `$${agencyWallet.balance}`, `$${agencyWallet.balance + amount}`);
   };
 
   const updateAgencyMarkup = (type: 'percentage' | 'flat', value: number) => {
-    const prevStr = `${agencyMarkup.type} ${agencyMarkup.value}${agencyMarkup.type === 'percentage' ? '%' : '$'}`;
-    const newStr = `${type} ${value}${type === 'percentage' ? '%' : '$'}`;
     setAgencyMarkup({ type, value });
-    logAuditAction('Agency Markup Slider Changed', 'Markup', 'margin-engine', prevStr, newStr);
   };
 
   const addQuotation = (quote: QuotationRecord) => {
     setQuotations(prev => [quote, ...prev]);
-    logAuditAction(`New Quotation Generated #${quote.quoteNumber}`, 'Markup', quote.id, 'N/A', `$${quote.clientSellingPrice}`);
   };
 
   const updateQuotationDelivery = (quoteId: string, channel: 'download' | 'whatsapp' | 'email') => {
@@ -401,20 +511,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
   };
 
-  // Leads
   const updateLeadPipeline = (leadId: string, status: LeadPipelineStatus) => {
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, pipelineStatus: status } : l));
-    logAuditAction(`Lead Status Updated to ${status}`, 'Agency Tier', leadId, 'In Pipeline', status);
   };
 
   const assignLeadToStaff = (leadId: string, staffId: string) => {
     const staffMember = staff.find(s => s.id === staffId);
     if (!staffMember) return;
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, assignedStaffId: staffId, assignedStaffName: staffMember.name } : l));
-    logAuditAction(`Lead Reassigned to ${staffMember.name}`, 'Agency Tier', leadId, 'Previous Staff', staffMember.name);
   };
 
-  // Vendor Ledger
   const recordVendorPayment = (vendorId: string, amount: number) => {
     setVendorLedger(prev => prev.map(v => {
       if (v.id === vendorId) {
@@ -430,7 +536,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return v;
     }));
-    logAuditAction('Vendor Remittance Recorded', 'Offline Rate', vendorId, 'Unpaid balance', `Paid $${amount}`);
   };
 
   const addOfflineRate = (rate: Omit<OfflineRateSheet, 'id'>) => {
@@ -439,20 +544,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `off-${Date.now()}`
     };
     setOfflineRates(prev => [newRate, ...prev]);
-    logAuditAction('Contracted Offline Rate Added', 'Offline Rate', newRate.id, 'None', `${newRate.category} @ $${newRate.unitPrice}`);
   };
 
   const createInvoice = (invoice: InvoiceDocument) => {
     setInvoices(prev => [invoice, ...prev]);
-    logAuditAction(`Invoice Issued #${invoice.invoiceNumber}`, 'Invoice', invoice.id, 'Draft', `$${invoice.grandTotal}`);
   };
 
-  // Audit
   const logAuditAction = (action: string, entityType: AuditLogEntry['entityType'], entityId: string, previousValue: string, newValue: string) => {
     const entry: AuditLogEntry = {
       id: `aud-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
-      actorName: activeRole.replace('_', ' ').toUpperCase(),
+      actorName: activeRole === 'super_admin' ? 'SUPER ADMIN' : 'CUSTOMER',
       actorRole: activeRole,
       action,
       entityType,
@@ -495,6 +597,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         approveBooking,
         rejectBooking,
         cancelBooking,
+        visaDestinations,
+        updateVisaDestination,
+        addVisaDestination,
+        deleteVisaDestination,
+        visaApplications,
+        createVisaApplication,
+        updateVisaApplicationStatus,
+        adminVisaConfig,
+        updateAdminVisaConfig,
+        calculateGuaranteedDate,
+        holidayPackages,
+        updateHolidayPackage,
+        addHolidayPackage,
+        deleteHolidayPackage,
+        holidayBookings,
+        createHolidayBooking,
+        updateHolidayBookingStatus,
+        adminHolidayConfig,
+        updateAdminHolidayConfig,
         activeCheckout,
         openCheckout,
         closeCheckout,

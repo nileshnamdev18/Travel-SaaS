@@ -58,13 +58,13 @@ export const HotelsModule: React.FC = () => {
         <div style={{ position: 'relative', zIndex: 1 }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.15)', color: '#fff', padding: '4px 14px', borderRadius: 'var(--radius-full)', fontSize: '0.78rem', fontWeight: 700, marginBottom: '0.75rem' }}>
             <Award size={13} />
-            <span>1M+ VERIFIED GUEST REVIEWS • FREE CANCELLATION ON MOST ROOMS</span>
+            <span>AKBAR TRAVELS SPECIAL RATES • 500,000+ PROPERTIES WORLDWIDE</span>
           </div>
           <h1 style={{ fontSize: '2.2rem', fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', marginBottom: '0.5rem' }}>
-            World-Class Hotels
+            Akbar Travels Hotels & Resorts
           </h1>
           <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.95rem', maxWidth: '540px' }}>
-            From Haram-courtyard suites in Makkah to iconic beachfront villas in Bali — discover premium stays with real-time corporate policy checking.
+            Handpicked luxury and budget hotels worldwide. Exclusive negotiated rates with free cancellation and instant booking confirmation.
           </p>
         </div>
       </div>

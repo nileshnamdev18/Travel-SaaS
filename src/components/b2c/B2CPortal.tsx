@@ -1,22 +1,22 @@
 import React, { useState } from 'react';
 import { FlightsModule } from './FlightsModule';
 import { HotelsModule } from './HotelsModule';
-import { UmrahModule } from './UmrahModule';
+// import { UmrahModule } from './UmrahModule'; // COMMENTED OUT - not in scope for this version
 import { VisaModule } from './VisaModule';
 import { HolidaysModule } from './HolidaysModule';
-import { MiceModule } from './MiceModule';
+// import { MiceModule } from './MiceModule'; // COMMENTED OUT - not in scope for this version
+import { ChatbotModule } from './ChatbotModule';
+import { CustomTripModule } from './CustomTripModule';
 import { 
   Plane, 
   Building, 
   Sparkles, 
   FileText, 
   Palmtree, 
-  Briefcase,
-  Flame,
-  BadgePercent
+  MessageSquare
 } from 'lucide-react';
 
-type VerticalType = 'flights' | 'hotels' | 'holidays' | 'umrah' | 'visa' | 'mice';
+type VerticalType = 'flights' | 'hotels' | 'visa' | 'holidays' | 'chatbot' | 'custom_trip';
 
 export const B2CPortal: React.FC = () => {
   const [activeVertical, setActiveVertical] = useState<VerticalType>('flights');
@@ -28,12 +28,12 @@ export const B2CPortal: React.FC = () => {
     tag?: string; 
     tagColor?: string;
   }[] = [
-    { id: 'flights', label: 'Flights', icon: <Plane size={18} />, tag: 'Cheapest Fares', tagColor: 'var(--brand-accent)' },
-    { id: 'hotels', label: 'Hotels', icon: <Building size={18} />, tag: 'Up to 25% Off' },
-    { id: 'holidays', label: 'Holidays', icon: <Palmtree size={18} />, tag: 'Custom Tour' },
-    { id: 'umrah', label: 'Umrah & Hajj', icon: <Sparkles size={18} color="var(--gold-500)" />, tag: 'Nusuk Sync', tagColor: 'var(--emerald-600)' },
-    { id: 'visa', label: 'e-Visas & OCR', icon: <FileText size={18} />, tag: '24h Express' },
-    { id: 'mice', label: 'M.I.C.E. Corporate', icon: <Briefcase size={18} />, tag: 'Group RFP' }
+    { id: 'flights', label: 'Flights', icon: <Plane size={18} />, tag: 'Akbar Travels', tagColor: '#c0392b' },
+    { id: 'hotels', label: 'Hotels', icon: <Building size={18} />, tag: 'Akbar Travels' },
+    { id: 'visa', label: 'e-Visa & OCR', icon: <FileText size={18} />, tag: 'Atlys Partner', tagColor: '#7c3aed' },
+    { id: 'holidays', label: 'Holiday Packages', icon: <Palmtree size={18} />, tag: 'Thomas Cook', tagColor: '#d97706' },
+    { id: 'chatbot', label: 'Get Quote', icon: <MessageSquare size={18} />, tag: 'WhatsApp', tagColor: '#25D366' },
+    { id: 'custom_trip', label: 'Customize Trip', icon: <Sparkles size={18} />, tag: 'AI Agent', tagColor: '#7c3aed' },
   ];
 
   return (
@@ -54,7 +54,7 @@ export const B2CPortal: React.FC = () => {
             return (
               <button
                 key={s.id}
-                className={`travel-service-item ${isActive ? (s.id === 'umrah' ? 'active-umrah' : 'active') : ''}`}
+                className={`travel-service-item ${isActive ? 'active' : ''}`}
                 onClick={() => setActiveVertical(s.id)}
               >
                 {s.icon}
@@ -85,10 +85,12 @@ export const B2CPortal: React.FC = () => {
       {/* Render Active Vertical */}
       {activeVertical === 'flights' && <FlightsModule />}
       {activeVertical === 'hotels' && <HotelsModule />}
-      {activeVertical === 'holidays' && <HolidaysModule />}
-      {activeVertical === 'umrah' && <UmrahModule />}
       {activeVertical === 'visa' && <VisaModule />}
-      {activeVertical === 'mice' && <MiceModule />}
+      {activeVertical === 'holidays' && <HolidaysModule />}
+      {activeVertical === 'chatbot' && <ChatbotModule />}
+      {activeVertical === 'custom_trip' && <CustomTripModule />}
+      {/* {activeVertical === 'umrah' && <UmrahModule />} */}
+      {/* {activeVertical === 'mice' && <MiceModule />} */}
     </div>
   );
 };
