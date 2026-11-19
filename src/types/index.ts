@@ -275,6 +275,8 @@ export interface HolidayPackage {
   isBestSeller?: boolean;
   isFeatured?: boolean;
   isTrending?: boolean;
+  rating?: number;
+  reviewCount?: number;
   discountPercent?: number;
   cancellationPolicy?: string;
 }
@@ -302,6 +304,17 @@ export interface HolidayBookingRecord {
   createdAt: string;
 }
 
+export interface FeaturedDestinationItem {
+  name: string;
+  imageUrl: string;
+}
+
+export interface TrustPillarItem {
+  icon: string;
+  title: string;
+  description: string;
+}
+
 export interface AdminHolidayConfig {
   partnerMarkupPercent: number;
   groupDiscountPercent: number;
@@ -309,6 +322,18 @@ export interface AdminHolidayConfig {
   supportHelpline: string;
   whatsappInquiryNumber: string;
   enableInstantBooking: boolean;
+  heroHeadline?: string;
+  heroSubheading?: string;
+  featuredDestinations?: FeaturedDestinationItem[];
+  announcementBanner?: string;
+  announcementBannerEnabled?: boolean;
+  assuranceTitle?: string;
+  assuranceBadges?: string[];
+  trustPillars?: TrustPillarItem[];
+  loyaltyPointsRate?: number;
+  hotelTierMultiplierComfort?: number;
+  hotelTierMultiplierSuperior?: number;
+  hotelTierMultiplierLuxury?: number;
 }
 
 // ======================== CHATBOT & CUSTOM TRIP INQUIRY TYPES ========================

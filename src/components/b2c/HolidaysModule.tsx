@@ -110,24 +110,32 @@ export const HolidaysModule: React.FC = () => {
   const [trackRefInput, setTrackRefInput] = useState('');
   const [trackLookupResult, setTrackLookupResult] = useState<any | null | 'not_found'>(null);
 
-  // Quick Popular Search Tiles
-  const popularInternational = [
-    { name: 'Europe', img: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=300&q=80' },
-    { name: 'Dubai', img: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=300&q=80' },
-    { name: 'Vietnam', img: 'https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=300&q=80' },
-    { name: 'Thailand', img: 'https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?auto=format&fit=crop&w=300&q=80' },
-  ];
+  // Quick Popular Search Tiles — built from admin config (dynamic)
+  const featuredDests = adminHolidayConfig.featuredDestinations || [];
+  const popularInternational = featuredDests
+    .filter(d => {
+      const name = typeof d === 'string' ? d : d.name;
+      return ['europe', 'dubai', 'vietnam', 'thailand', 'bali', 'singapore', 'japan', 'maldives'].includes(name.toLowerCase());
+    })
+    .slice(0, 4)
+    .map(d => typeof d === 'string' ? { name: d, img: `https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=300&q=80` } : { name: d.name, img: d.imageUrl });
 
-  const popularDomestic = [
-    { name: 'Kashmir', img: 'https://images.unsplash.com/photo-1595815771614-ade9d652a65d?auto=format&fit=crop&w=300&q=80' },
-    { name: 'Kerala', img: 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?auto=format&fit=crop&w=300&q=80' },
-    { name: 'Ladakh', img: 'https://images.unsplash.com/photo-1581793745862-99fde7fa73d2?auto=format&fit=crop&w=300&q=80' },
-    { name: 'Himachal', img: 'https://images.unsplash.com/photo-1582650625119-3a31f841839d?auto=format&fit=crop&w=300&q=80' },
-  ];
+  const popularDomestic = featuredDests
+    .filter(d => {
+      const name = typeof d === 'string' ? d : d.name;
+      return ['kashmir', 'kerala', 'ladakh', 'himachal', 'goa', 'rajasthan', 'uttarakhand'].includes(name.toLowerCase());
+    })
+    .slice(0, 4)
+    .map(d => typeof d === 'string' ? { name: d, img: `https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=300&q=80` } : { name: d.name, img: d.imageUrl });
 
-  // Price Calculation Helpers
+  // If not enough filtered, fill with any remaining
+  const allAsInternat = featuredDests.slice(0, 4).map(d => typeof d === 'string' ? { name: d, img: `https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=300&q=80` } : { name: d.name, img: d.imageUrl });
+  const allAsDomestic = featuredDests.slice(4, 8).map(d => typeof d === 'string' ? { name: d, img: `https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=300&q=80` } : { name: d.name, img: d.imageUrl });
+  const finalInternational = popularInternational.length >= 2 ? popularInternational : allAsInternat;
+  const finalDomestic = popularDomestic.length >= 2 ? popularDomestic : allAsDomestic;
+
   const getPackageSellingPrice = (pkg: HolidayPackage) => {
-    const markup = adminHolidayConfig.partnerMarkupPercent || 12;
+    const markup = adminHolidayConfig.partnerMarkupPercent || 15;
     return Math.round(pkg.basePrice * (1 + markup / 100));
   };
 
@@ -137,7 +145,10 @@ export const HolidaysModule: React.FC = () => {
 
   const calculateDrawerTotalPrice = (pkg: HolidayPackage) => {
     const baseSelling = getPackageSellingPrice(pkg);
-    const tierMultiplier = drawerHotelTier === 'Comfort' ? 0.9 : drawerHotelTier === 'Luxury 5-Star' ? 1.35 : 1.0;
+    const comfortMult = adminHolidayConfig.hotelTierMultiplierComfort ?? 0.9;
+    const superiorMult = adminHolidayConfig.hotelTierMultiplierSuperior ?? 1.0;
+    const luxuryMult = adminHolidayConfig.hotelTierMultiplierLuxury ?? 1.35;
+    const tierMultiplier = drawerHotelTier === 'Comfort' ? comfortMult : drawerHotelTier === 'Luxury 5-Star' ? luxuryMult : superiorMult;
     const adultCost = Math.round(baseSelling * tierMultiplier) * drawerAdults;
     const childCost = Math.round(baseSelling * tierMultiplier * 0.6) * drawerChildren;
     let total = adultCost + childCost;
@@ -874,7 +885,7 @@ export const HolidaysModule: React.FC = () => {
                 </div>
 
                 <div style={{ background: '#EFF8FF', padding: '0.75rem', borderRadius: 8, fontSize: '0.78rem', color: '#0F4CA4', fontWeight: 600, marginBottom: '1.25rem' }}>
-                  🎁 Earn <strong>443 Thomas Cook Loyalty Points</strong> with this booking
+                  🎁 Earn <strong>{Math.round(sellingPrice * (adminHolidayConfig.loyaltyPointsRate ?? 0.05))} Thomas Cook Loyalty Points</strong> with this booking
                 </div>
 
                 <button
@@ -1151,11 +1162,11 @@ export const HolidaysModule: React.FC = () => {
           </div>
 
           <h1 style={{ fontFamily: 'var(--font-tc-editorial)', fontSize: '3rem', fontWeight: 600, letterSpacing: '-0.02em', margin: '0 0 1rem', lineHeight: 1.15 }}>
-            Explore Handcrafted Holidays Across the World
+            {adminHolidayConfig.heroHeadline || 'Explore Handcrafted Holidays Across the World'}
           </h1>
 
           <p style={{ fontSize: '1.05rem', color: '#E2E8F0', lineHeight: 1.6, margin: '0 0 2rem', maxWidth: 680 }}>
-            Discover breathtaking holidays from majestic Kashmir & tropical Kerala to glamorous Dubai & the Swiss Alps. Guaranteed 4★ stays, authentic meals, and customizable day itineraries.
+            {adminHolidayConfig.heroSubheading || 'Discover breathtaking holidays from majestic Kashmir & tropical Kerala to glamorous Dubai & the Swiss Alps. Guaranteed 4★ stays, authentic meals, and customizable day itineraries.'}
           </p>
 
           {/* 60px Rounded Hero Search Bar */}
@@ -1396,7 +1407,7 @@ export const HolidaysModule: React.FC = () => {
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
-                    {popularInternational.map((dest, i) => (
+                    {finalInternational.map((dest, i) => (
                       <div
                         key={i}
                         onClick={() => {
@@ -1425,7 +1436,7 @@ export const HolidaysModule: React.FC = () => {
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-                    {popularDomestic.map((dest, i) => (
+                    {finalDomestic.map((dest, i) => (
                       <div
                         key={i}
                         onClick={() => {
@@ -1472,11 +1483,11 @@ export const HolidaysModule: React.FC = () => {
           TC
         </div>
         <div>
-          <div style={{ fontWeight: 800, color: '#0F4CA4', fontSize: '0.95rem' }}>Thomas Cook Holiday Assurance</div>
+          <div style={{ fontWeight: 800, color: '#0F4CA4', fontSize: '0.95rem' }}>{adminHolidayConfig.assuranceTitle || 'Thomas Cook Holiday Assurance'}</div>
           <div style={{ fontSize: '0.78rem', color: '#565E73' }}>140+ Years of Heritage • Verified 4★ Stays • Dedicated English/Hindi Tour Manager</div>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {['All Meals Included', 'Flexi-Cancellation', '24x7 On-Tour Support'].map(b => (
+          {(adminHolidayConfig.assuranceBadges || ['All Meals Included', 'Flexi-Cancellation', '24x7 On-Tour Support']).map(b => (
             <span key={b} style={{ fontSize: '0.75rem', background: '#0F4CA4', color: '#fff', padding: '3px 12px', borderRadius: 20, fontWeight: 700 }}>
               {b}
             </span>
@@ -1566,7 +1577,7 @@ export const HolidaysModule: React.FC = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, borderTop: '1px solid #EDEEF1', paddingTop: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: '0.75rem', color: '#565E73' }}>Departure Hub:</span>
-            {['Mumbai', 'Delhi', 'Bengaluru', 'Ahmedabad', 'Kolkata'].map(city => (
+            {Array.from(new Set(holidayPackages.flatMap(p => p.departureCities || []))).slice(0, 6).map(city => (
               <button
                 key={city}
                 onClick={() => setSelectedDepartureCity(city)}
@@ -1801,7 +1812,7 @@ export const HolidaysModule: React.FC = () => {
                         {pkg.destination}
                       </span>
                       <span style={{ fontSize: '0.72rem', color: '#FF7700', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
-                        <Star size={12} fill="#FF7700" color="#FF7700" /> 4.2 (230)
+                        <Star size={12} fill="#FF7700" color="#FF7700" /> {(pkg.rating ?? 4.5).toFixed(1)} ({pkg.reviewCount ?? 120})
                       </span>
                     </div>
 
@@ -1823,12 +1834,21 @@ export const HolidaysModule: React.FC = () => {
                       )}
                     </div>
 
-                    {/* 5 Inclusions Row */}
+                    {/* Inclusions Row */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderTop: '1px solid #EDEEF1', paddingTop: 8, fontSize: '0.7rem', color: '#565E73' }}>
-                      <span title="Flights">✈️ Flight</span>
-                      <span title="Hotels">🏨 Hotel</span>
-                      <span title="Sightseeing">📸 Sightseeing</span>
-                      <span title="Meals">🍽️ Meals</span>
+                      {(pkg.inclusions || []).slice(0, 4).map((inc, i) => (
+                        <span key={i} title={inc}>
+                          {i === 0 ? '✈️' : i === 1 ? '🏨' : i === 2 ? '📸' : '🍽️'} {inc.split(' ').slice(0, 2).join(' ')}
+                        </span>
+                      ))}
+                      {(!pkg.inclusions || pkg.inclusions.length === 0) && (
+                        <>
+                          <span>✈️ Flight</span>
+                          <span>🏨 Hotel</span>
+                          <span>📸 Sightseeing</span>
+                          <span>🍽️ Meals</span>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -1882,19 +1902,27 @@ export const HolidaysModule: React.FC = () => {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
-          {[
-            { icon: '🏛️', title: 'Trusted Advisor', desc: 'Over 140 years of pioneering heritage designed for modern journeys.' },
-            { icon: '🎨', title: 'Customized Holidays', desc: 'Personalize daily itineraries according to your own pacing and preferences.' },
-            { icon: '🌍', title: 'Wide Varieties', desc: 'From romantic honeymoons to thrilling high treks and escorted tours.' },
-            { icon: '💳', title: 'Seamless Booking', desc: 'Hassle-free reservations with 100% secure payments and zero hidden fees.' },
-            { icon: '✈️', title: 'All-In-One Ease', desc: 'Complete holiday coverage: flights, hotels, meals, and curated tours.' }
-          ].map((item, idx) => (
-            <div key={idx} style={{ background: '#FFFFFF', padding: '1.5rem', borderRadius: 16, border: '0.8px solid #EDEEF1', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ fontSize: '2rem' }}>{item.icon}</div>
-              <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#24262D' }}>{item.title}</h4>
-              <p style={{ margin: 0, fontSize: '0.78rem', color: '#565E73', lineHeight: 1.45 }}>{item.desc}</p>
-            </div>
-          ))}
+          {(adminHolidayConfig.trustPillars && adminHolidayConfig.trustPillars.length > 0
+            ? adminHolidayConfig.trustPillars
+            : [
+                { icon: '🏛️', title: 'Trusted Advisor', description: 'Over 140 years of pioneering heritage designed for modern journeys.' },
+                { icon: '🎨', title: 'Customized Holidays', description: 'Personalize daily itineraries according to your own pacing and preferences.' },
+                { icon: '🌍', title: 'Wide Varieties', description: 'From romantic honeymoons to thrilling high treks and escorted tours.' },
+                { icon: '💳', title: 'Seamless Booking', description: 'Hassle-free reservations with 100% secure payments and zero hidden fees.' },
+                { icon: '✈️', title: 'All-In-One Ease', description: 'Complete holiday coverage: flights, hotels, meals, and curated tours.' }
+              ]
+          ).map((item, idx) => {
+            const iconMap: Record<string, string> = { shield: '🛡️', star: '⭐', users: '👥', map: '🗺️', phone: '📞', award: '🏆' };
+            const icon = iconMap[item.icon] || item.icon || '✨';
+            const desc = (item as any).description || (item as any).desc || '';
+            return (
+              <div key={idx} style={{ background: '#FFFFFF', padding: '1.5rem', borderRadius: 16, border: '0.8px solid #EDEEF1', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ fontSize: '2rem' }}>{icon}</div>
+                <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#24262D' }}>{item.title}</h4>
+                <p style={{ margin: 0, fontSize: '0.78rem', color: '#565E73', lineHeight: 1.45 }}>{desc}</p>
+              </div>
+            );
+          })}
         </div>
       </div>
 

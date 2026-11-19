@@ -22,6 +22,7 @@
     "mongoose": "^8.3.4",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
+    "pdf-parse": "^2.4.5",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
@@ -32,6 +33,7 @@
     "@types/morgan": "^1.9.9",
     "@types/multer": "^1.4.11",
     "@types/node": "^20.12.7",
+    "@types/pdf-parse": "^1.1.5",
     "@types/uuid": "^9.0.8",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.4.5"

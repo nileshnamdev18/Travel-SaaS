@@ -50,7 +50,15 @@ router.put(
     body('heroHeadline').optional().trim(),
     body('heroSubheading').optional().trim(),
     body('featuredDestinations').optional().isArray(),
-    body('announcementBannerEnabled').optional().isBoolean()
+    body('announcementBanner').optional().trim(),
+    body('announcementBannerEnabled').optional().isBoolean(),
+    body('assuranceTitle').optional().trim(),
+    body('assuranceBadges').optional().isArray(),
+    body('trustPillars').optional().isArray(),
+    body('loyaltyPointsRate').optional().isFloat({ min: 0, max: 1 }),
+    body('hotelTierMultiplierComfort').optional().isFloat({ min: 0 }),
+    body('hotelTierMultiplierSuperior').optional().isFloat({ min: 0 }),
+    body('hotelTierMultiplierLuxury').optional().isFloat({ min: 0 })
   ],
   async (req: AuthRequest, res: Response): Promise<void> => {
     const errors = validationResult(req);

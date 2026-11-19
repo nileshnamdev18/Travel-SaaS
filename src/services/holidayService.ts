@@ -731,12 +731,38 @@ export const INITIAL_THOMASCOOK_BOOKINGS: HolidayBookingRecord[] = [
 // ======================== INITIAL ADMIN CONFIG ========================
 
 export const INITIAL_ADMIN_HOLIDAY_CONFIG: AdminHolidayConfig = {
-  partnerMarkupPercent: 12,
-  groupDiscountPercent: 5,
+  partnerMarkupPercent: 15,
+  groupDiscountPercent: 8,
   tourManagerIncludedByDefault: true,
-  supportHelpline: '1800 2099 100',
-  whatsappInquiryNumber: '+91 98765 43210',
-  enableInstantBooking: true
+  supportHelpline: '1800-209-9100',
+  whatsappInquiryNumber: '+919222211100',
+  enableInstantBooking: true,
+  heroHeadline: 'Explore Handcrafted Holidays Across the World',
+  heroSubheading:
+    'Discover breathtaking holidays from majestic Kashmir & tropical Kerala to glamorous Dubai & the Swiss Alps. Guaranteed 4★ stays, authentic meals, and customizable day itineraries.',
+  featuredDestinations: [
+    { name: 'Kashmir', imageUrl: 'https://images.unsplash.com/photo-1595815771614-ade9d652a65d?auto=format&fit=crop&w=300&q=80' },
+    { name: 'Kerala', imageUrl: 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?auto=format&fit=crop&w=300&q=80' },
+    { name: 'Dubai', imageUrl: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=300&q=80' },
+    { name: 'Europe', imageUrl: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=300&q=80' },
+    { name: 'Thailand', imageUrl: 'https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?auto=format&fit=crop&w=300&q=80' },
+    { name: 'Bali', imageUrl: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?auto=format&fit=crop&w=300&q=80' }
+  ],
+  announcementBanner: '🎉 Summer Special Offer: Flat 10% OFF on European & Domestic Group Tours!',
+  announcementBannerEnabled: true,
+  assuranceTitle: '140+ Years of Heritage & Seamless Holiday Assurance',
+  assuranceBadges: ['All Meals Included Options', 'Flexi-Cancellation & Reschedule', '24/7 Dedicated Tour Manager'],
+  trustPillars: [
+    { icon: 'shield', title: '140+ Years of Heritage', description: "Trusted by 3 crore+ Indians since 1881 — India's original travel brand." },
+    { icon: 'star', title: 'Award-Winning Packages', description: 'Winner of 15+ national travel excellence awards for best holiday value.' },
+    { icon: 'users', title: 'Expert Tour Managers', description: 'Every group tour comes with a dedicated Hindi/English speaking tour manager.' },
+    { icon: 'map', title: '500+ Destinations', description: 'From Leh to Lisbon — we craft journeys to 500+ global destinations.' },
+    { icon: 'phone', title: '24/7 Holiday Helpdesk', description: 'Round-the-clock support — our specialists are always a call away.' }
+  ],
+  loyaltyPointsRate: 0.05,
+  hotelTierMultiplierComfort: 0.9,
+  hotelTierMultiplierSuperior: 1.0,
+  hotelTierMultiplierLuxury: 1.35
 };
 
 // ======================== SERVICE CLASS ========================
@@ -783,6 +809,8 @@ class HolidayBackendService {
           isBestSeller: p.isBestSeller || false,
           isFeatured: p.isFeatured || false,
           isTrending: p.isTrending || false,
+          rating: p.rating ?? 4.5,
+          reviewCount: p.reviewCount ?? 120,
           discountPercent: p.discountPercent || 0,
           cancellationPolicy: p.cancellationPolicy || 'Standard cancellation policy applies.',
           days: (p.days as any) || []
@@ -797,9 +825,17 @@ class HolidayBackendService {
       const cfgRes = await configApi.getPublic();
       if (cfgRes && cfgRes.success && cfgRes.data) {
         const current = this.getAdminConfig();
+        // Normalize featuredDestinations: may be string[] or {name, imageUrl}[]
+        const rawFeatured = (cfgRes.data as any).featuredDestinations;
+        const normalizedFeatured: Array<{ name: string; imageUrl: string }> = Array.isArray(rawFeatured)
+          ? rawFeatured.map((d: any) =>
+              typeof d === 'string' ? { name: d, imageUrl: '' } : d
+            )
+          : [];
         const merged: AdminHolidayConfig = {
           ...current,
-          ...cfgRes.data
+          ...(cfgRes.data as any),
+          featuredDestinations: normalizedFeatured
         };
         this.saveAdminConfig(merged);
       }

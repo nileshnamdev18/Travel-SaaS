@@ -12,6 +12,7 @@ import packageRoutes from './routes/package.routes';
 import bookingRoutes from './routes/booking.routes';
 import adminRoutes from './routes/admin.routes';
 import configRoutes from './routes/config.routes';
+import pdfExtractRoutes from './routes/pdfExtract.routes';
 
 dotenv.config();
 
@@ -42,6 +43,7 @@ app.use(rateLimit({
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
+app.use('/api/packages', pdfExtractRoutes);
 app.use('/api/packages', packageRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/admin', adminRoutes);

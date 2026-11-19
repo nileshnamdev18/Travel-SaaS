@@ -79,6 +79,8 @@ export interface IHolidayPackage extends Document {
   isFeatured: boolean;
   isTrending: boolean;
   isActive: boolean;
+  rating: number;
+  reviewCount: number;
   discountPercent: number;
   cancellationPolicy: string;
   tags: string[];
@@ -113,6 +115,8 @@ const HolidayPackageSchema = new Schema<IHolidayPackage>(
     isFeatured: { type: Boolean, default: false },
     isTrending: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
+    rating: { type: Number, default: 4.5, min: 0, max: 5 },
+    reviewCount: { type: Number, default: 120, min: 0 },
     discountPercent: { type: Number, default: 0, min: 0, max: 100 },
     cancellationPolicy: { type: String, default: 'Non-refundable after booking.' },
     tags: [String],

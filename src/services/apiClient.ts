@@ -111,6 +111,8 @@ export interface ApiHolidayPackage {
   isFeatured: boolean;
   isTrending: boolean;
   isActive: boolean;
+  rating?: number;
+  reviewCount?: number;
   discountPercent: number;
   cancellationPolicy: string;
   tags: string[];
@@ -155,7 +157,26 @@ export const packagesApi = {
     request<ApiResponse<ApiHolidayPackage>>('PATCH', `/packages/${id}`, data, true),
 
   remove: (id: string) =>
-    request<ApiResponse<null>>('DELETE', `/packages/${id}`, undefined, true)
+    request<ApiResponse<null>>('DELETE', `/packages/${id}`, undefined, true),
+
+  extractFromPdf: async (file: File): Promise<ApiResponse<Partial<ApiHolidayPackage>>> => {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append('file', file);
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch(`${BASE_URL}/packages/extract-from-pdf`, {
+      method: 'POST',
+      headers,
+      body: formData
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+    return data;
+  }
 };
 
 // ─── Bookings ──────────────────────────────────────────────────────────────────
@@ -254,9 +275,16 @@ export interface ApiHolidayConfig {
   enableInstantBooking: boolean;
   heroHeadline: string;
   heroSubheading: string;
-  featuredDestinations: string[];
+  featuredDestinations: Array<{ name: string; imageUrl: string }> | string[];
   announcementBanner?: string;
   announcementBannerEnabled: boolean;
+  assuranceTitle?: string;
+  assuranceBadges?: string[];
+  trustPillars?: Array<{ icon: string; title: string; description: string }>;
+  loyaltyPointsRate?: number;
+  hotelTierMultiplierComfort?: number;
+  hotelTierMultiplierSuperior?: number;
+  hotelTierMultiplierLuxury?: number;
 }
 
 export interface ApiHolidayConfigAdmin extends ApiHolidayConfig {
