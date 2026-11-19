@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
-import { checkApiHealth } from '../../services/apiClient';
+import { checkApiHealth, packagesApi } from '../../services/apiClient';
 import { holidayBackend } from '../../services/holidayService';
 import { 
   ShieldCheck, 
@@ -33,7 +33,15 @@ import {
   Palmtree,
   Compass,
   MessageSquare,
-  Sparkles
+  Sparkles,
+  FileUp,
+  Upload,
+  X,
+  Check,
+  Image as ImageIcon,
+  MapPin,
+  Sliders,
+  RefreshCw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { 
@@ -121,16 +129,36 @@ export const SuperAdminPanel: React.FC = () => {
   });
   const [savedVisaEngineSuccess, setSavedVisaEngineSuccess] = useState(false);
 
-  // Global Holiday Engine local state
+  // Global Holiday Engine local state (with full dynamic marketing configuration)
   const [holidayEngineConfig, setHolidayEngineConfig] = useState({
-    partnerMarkupPercent: adminHolidayConfig.partnerMarkupPercent,
-    groupDiscountPercent: adminHolidayConfig.groupDiscountPercent,
-    tourManagerIncludedByDefault: adminHolidayConfig.tourManagerIncludedByDefault,
-    supportHelpline: adminHolidayConfig.supportHelpline,
-    whatsappInquiryNumber: adminHolidayConfig.whatsappInquiryNumber,
-    enableInstantBooking: adminHolidayConfig.enableInstantBooking
+    partnerMarkupPercent: adminHolidayConfig.partnerMarkupPercent || 15,
+    groupDiscountPercent: adminHolidayConfig.groupDiscountPercent || 8,
+    tourManagerIncludedByDefault: adminHolidayConfig.tourManagerIncludedByDefault ?? true,
+    supportHelpline: adminHolidayConfig.supportHelpline || '1800-209-9100',
+    whatsappInquiryNumber: adminHolidayConfig.whatsappInquiryNumber || '+919222211100',
+    enableInstantBooking: adminHolidayConfig.enableInstantBooking ?? true,
+    heroHeadline: adminHolidayConfig.heroHeadline || 'Explore Handcrafted Holidays Across the World',
+    heroSubheading: adminHolidayConfig.heroSubheading || 'Discover breathtaking holidays from majestic Kashmir & tropical Kerala to glamorous Dubai & the Swiss Alps. Guaranteed 4★ stays, authentic meals, and customizable day itineraries.',
+    announcementBanner: adminHolidayConfig.announcementBanner || '🎉 Summer Special Offer: Flat 10% OFF on European & Domestic Group Tours!',
+    announcementBannerEnabled: adminHolidayConfig.announcementBannerEnabled ?? true,
+    assuranceTitle: adminHolidayConfig.assuranceTitle || '140+ Years of Heritage & Seamless Holiday Assurance',
+    assuranceBadges: adminHolidayConfig.assuranceBadges || ['All Meals Included Options', 'Flexi-Cancellation & Reschedule', '24/7 Dedicated Tour Manager'],
+    loyaltyPointsRate: adminHolidayConfig.loyaltyPointsRate ?? 0.05,
+    hotelTierMultiplierComfort: adminHolidayConfig.hotelTierMultiplierComfort ?? 0.9,
+    hotelTierMultiplierSuperior: adminHolidayConfig.hotelTierMultiplierSuperior ?? 1.0,
+    hotelTierMultiplierLuxury: adminHolidayConfig.hotelTierMultiplierLuxury ?? 1.35
   });
   const [savedHolidayEngineSuccess, setSavedHolidayEngineSuccess] = useState(false);
+
+  // Sync state if adminHolidayConfig changes from DB sync
+  useEffect(() => {
+    if (adminHolidayConfig) {
+      setHolidayEngineConfig(prev => ({
+        ...prev,
+        ...adminHolidayConfig
+      }));
+    }
+  }, [adminHolidayConfig]);
 
   // Destination Management state
   const [editingDestinationId, setEditingDestinationId] = useState<string | null>(null);
@@ -150,25 +178,77 @@ export const SuperAdminPanel: React.FC = () => {
     popular: false
   });
 
+  // PDF Extraction & Full Package Builder state
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+  const [isPdfExtracting, setIsPdfExtracting] = useState(false);
+  const [pdfExtractError, setPdfExtractError] = useState<string | null>(null);
+  const [pdfExtractSuccess, setPdfExtractSuccess] = useState<string | null>(null);
+  const [builderTab, setBuilderTab] = useState<'basic' | 'pricing' | 'media' | 'itinerary' | 'inclusions'>('basic');
+  const [editingPackageId, setEditingPackageId] = useState<string | null>(null);
+
+  const initialNewHolidayState: Partial<HolidayPackage> = {
+    title: '',
+    destination: '',
+    destinationType: 'domestic',
+    region: 'North India',
+    theme: 'family',
+    category: 'Customized',
+    durationDays: 5,
+    durationNights: 4,
+    departureCities: ['Mumbai', 'Delhi', 'Bengaluru', 'Ahmedabad'],
+    basePrice: 550,
+    wholesaleCost: 420,
+    heroImage: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=900&q=80',
+    galleryImages: [
+      'https://images.unsplash.com/photo-1598091383021-15ddea10925d?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1582650625119-3a31f841839d?auto=format&fit=crop&w=800&q=80'
+    ],
+    highlights: ['Scenic Guided Tour', '4-Star Handpicked Stays', 'Breakfast & Dinners Included'],
+    inclusions: [
+      'Accommodation in 4-Star Handpicked Hotels',
+      'Daily Buffet Breakfasts & Dinners',
+      'Private AC Transfers & Sightseeing',
+      'Dedicated Hindi / English Tour Guide'
+    ],
+    exclusions: ['Airfare / Train tickets to destination', 'Personal shopping and room service'],
+    hotelTiers: {
+      standard: 'Selected 3-Star Quality Hotel',
+      deluxe: 'Selected 4-Star Premium Hotel',
+      luxury: 'Selected 5-Star Luxury Resort'
+    },
+    days: [
+      {
+        dayNumber: 1,
+        dayTitle: 'Arrival & Welcome Excursion',
+        destination: 'Srinagar',
+        hotelName: 'Heritage Luxury Resort',
+        hotelTier: 'Superior',
+        mealsIncluded: ['Dinner'],
+        currentActivity: {
+          id: 'act-1',
+          title: 'Orientation City Sightseeing & Evening Walk',
+          duration: '3 Hours',
+          priceDelta: 0,
+          image: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=500&q=80',
+          description: 'Guided arrival tour of historic quarters.'
+        },
+        alternativeActivities: []
+      }
+    ],
+    isBestSeller: false,
+    isFeatured: true,
+    isTrending: false,
+    rating: 4.6,
+    reviewCount: 140,
+    discountPercent: 10,
+    cancellationPolicy: 'Free cancellation up to 10 days before departure.'
+  };
+
   // Holiday Package CRUD state
   const [editingHolidayId, setEditingHolidayId] = useState<string | null>(null);
   const [editHolidayForm, setEditHolidayForm] = useState<Partial<HolidayPackage>>({});
   const [showAddHolidayModal, setShowAddHolidayModal] = useState(false);
-  const [newHolidayForm, setNewHolidayForm] = useState<Partial<HolidayPackage>>({
-    title: '',
-    destination: '',
-    destinationType: 'domestic',
-    region: '',
-    category: 'Customized',
-    durationDays: 5,
-    durationNights: 4,
-    basePrice: 550,
-    wholesaleCost: 420,
-    heroImage: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=900&q=80',
-    highlights: ['Scenic Guided Tour', '4-Star Handpicked Stays', 'Breakfast & Dinners Included'],
-    isBestSeller: false,
-    discountPercent: 10
-  });
+  const [newHolidayForm, setNewHolidayForm] = useState<Partial<HolidayPackage>>(initialNewHolidayState);
 
   // Filters state
   const [visaAppStatusFilter, setVisaAppStatusFilter] = useState<string>('all');
@@ -294,62 +374,221 @@ export const SuperAdminPanel: React.FC = () => {
     setEditingHolidayId(null);
   };
 
-  const handleCreateNewHoliday = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newHolidayForm.title || !newHolidayForm.destination) return;
-    const pkgId = (newHolidayForm.title).toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 24);
-    const createdPkg: HolidayPackage = {
-      id: pkgId,
-      title: newHolidayForm.title,
-      destination: newHolidayForm.destination,
-      destinationType: newHolidayForm.destinationType || 'domestic',
-      region: newHolidayForm.region || 'Regional',
-      category: newHolidayForm.category || 'Customized',
-      durationDays: newHolidayForm.durationDays || 5,
-      durationNights: newHolidayForm.durationNights || (newHolidayForm.durationDays ? newHolidayForm.durationDays - 1 : 4),
-      departureCities: ['Mumbai', 'Delhi', 'Bengaluru', 'Ahmedabad'],
-      basePrice: newHolidayForm.basePrice || 500,
-      wholesaleCost: newHolidayForm.wholesaleCost || 400,
-      heroImage: newHolidayForm.heroImage || 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=900&q=80',
-      highlights: newHolidayForm.highlights || ['Scenic Sightseeing Tour', '4-Star Stay', 'Breakfast & Dinner'],
-      inclusions: [
-        'Accommodation in 4-Star Handpicked Hotels',
-        'Daily Buffet Breakfasts & Dinners',
-        'Private AC Transfers & Sightseeing',
-        'Entry tickets for scheduled monuments'
-      ],
-      exclusions: ['Airfare / Train tickets to destination', 'Personal shopping and room service'],
-      hotelTiers: {
-        standard: 'Selected 3-Star Quality Hotel',
-        deluxe: 'Selected 4-Star Premium Hotel',
-        luxury: 'Selected 5-Star Luxury Resort'
+  // Open Full Package Builder in Edit mode
+  const handleOpenFullEditModal = (pkg: HolidayPackage) => {
+    setEditingPackageId(pkg.id);
+    setNewHolidayForm({
+      ...pkg,
+      departureCities: pkg.departureCities || ['Mumbai', 'Delhi', 'Bengaluru'],
+      galleryImages: pkg.galleryImages || [],
+      highlights: pkg.highlights || [],
+      inclusions: pkg.inclusions || [],
+      exclusions: pkg.exclusions || [],
+      hotelTiers: pkg.hotelTiers || {
+        standard: 'Standard Quality Accommodation',
+        deluxe: 'Deluxe 4-Star Accommodation',
+        luxury: 'Luxury 5-Star Accommodation'
       },
-      isBestSeller: newHolidayForm.isBestSeller ?? false,
-      discountPercent: newHolidayForm.discountPercent || 10,
-      cancellationPolicy: 'Free cancellation up to 10 days before departure.',
-      days: [
+      days: (pkg.days && pkg.days.length > 0) ? pkg.days : [
         {
           dayNumber: 1,
           dayTitle: 'Arrival & Welcome Excursion',
-          destination: newHolidayForm.destination,
+          destination: pkg.destination,
+          hotelName: 'Heritage Luxury Resort',
+          hotelTier: 'Superior',
+          mealsIncluded: ['Dinner'],
           currentActivity: {
-            id: 'act-arrival',
+            id: 'act-1',
             title: 'Orientation City Sightseeing & Evening Walk',
             duration: '3 Hours',
             priceDelta: 0,
-            image: newHolidayForm.heroImage || 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=500&q=80',
-            description: 'Relaxed introductory exploration of key local viewpoints and markets.'
+            image: pkg.heroImage || 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=500&q=80',
+            description: 'Guided arrival tour of historic quarters.'
           },
-          alternativeActivities: [],
-          hotelName: 'Premium 4-Star City Hotel',
-          hotelTier: 'Superior',
-          mealsIncluded: ['Dinner']
+          alternativeActivities: []
         }
       ]
+    });
+    setBuilderTab('basic');
+    setPdfExtractError(null);
+    setPdfExtractSuccess(null);
+    setShowAddHolidayModal(true);
+  };
+
+  // Open Full Package Builder in Create mode
+  const handleOpenNewPackageModal = () => {
+    setEditingPackageId(null);
+    setNewHolidayForm(initialNewHolidayState);
+    setBuilderTab('basic');
+    setPdfExtractError(null);
+    setPdfExtractSuccess(null);
+    setShowAddHolidayModal(true);
+  };
+
+  // PDF Extraction Handler
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
+      setPdfExtractError('Please upload a valid PDF brochure file.');
+      return;
+    }
+    setIsPdfExtracting(true);
+    setPdfExtractError(null);
+    setPdfExtractSuccess(null);
+
+    try {
+      const res = await packagesApi.extractFromPdf(file);
+      if (res.success && res.data) {
+        const extracted = res.data;
+        setNewHolidayForm(prev => ({
+          ...prev,
+          ...(extracted as any),
+          theme: (extracted.theme as any) || prev.theme || 'family',
+          category: (extracted.category as any) || prev.category || 'Customized',
+          destinationType: (extracted.destinationType as any) || prev.destinationType || 'domestic',
+          days: (extracted.days && extracted.days.length > 0) ? (extracted.days as any) : prev.days,
+          hotelTiers: extracted.hotelTiers || prev.hotelTiers,
+          inclusions: (extracted.inclusions && extracted.inclusions.length > 0) ? extracted.inclusions : prev.inclusions,
+          exclusions: (extracted.exclusions && extracted.exclusions.length > 0) ? extracted.exclusions : prev.exclusions,
+          highlights: (extracted.highlights && extracted.highlights.length > 0) ? extracted.highlights : prev.highlights
+        }));
+        setPdfExtractSuccess(`✓ Extracted "${extracted.title || 'Tour'}" (${extracted.durationDays || 5} Days) from ${file.name}! Review and save below.`);
+        setShowAddHolidayModal(true);
+        confetti({ particleCount: 60, spread: 70, origin: { y: 0.5 } });
+      } else {
+        setPdfExtractError(res.message || 'Failed to extract package details from PDF.');
+      }
+    } catch (err: any) {
+      setPdfExtractError(err.message || 'Error communicating with PDF extraction API.');
+    } finally {
+      setIsPdfExtracting(false);
+      e.target.value = '';
+    }
+  };
+
+  // Builder Day-by-Day Handlers
+  const handleAddDay = () => {
+    const currentDays = newHolidayForm.days || [];
+    const nextNum = currentDays.length + 1;
+    const newDay = {
+      dayNumber: nextNum,
+      dayTitle: `Day ${nextNum}: Sightseeing & Excursions`,
+      destination: newHolidayForm.destination || 'Destination City',
+      hotelName: 'Selected 4-Star Resort',
+      hotelTier: 'Superior' as const,
+      mealsIncluded: ['Breakfast', 'Dinner'],
+      currentActivity: {
+        id: `act-${nextNum}`,
+        title: 'Curated Heritage & Cultural Tour',
+        duration: '4-5 Hours',
+        priceDelta: 0,
+        image: newHolidayForm.heroImage || 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=500&q=80',
+        description: 'Explore scenic landmarks and local cultural highlights.'
+      },
+      alternativeActivities: []
     };
-    addHolidayPackage(createdPkg);
-    setShowAddHolidayModal(false);
-    confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+    setNewHolidayForm({
+      ...newHolidayForm,
+      days: [...currentDays, newDay],
+      durationDays: Math.max(newHolidayForm.durationDays || 1, nextNum),
+      durationNights: Math.max(newHolidayForm.durationNights || 1, nextNum - 1)
+    });
+  };
+
+  const handleRemoveDay = (index: number) => {
+    const currentDays = (newHolidayForm.days || []).filter((_, i) => i !== index);
+    const reindexed = currentDays.map((d, i) => ({ ...d, dayNumber: i + 1 }));
+    setNewHolidayForm({
+      ...newHolidayForm,
+      days: reindexed,
+      durationDays: Math.max(1, reindexed.length),
+      durationNights: Math.max(1, reindexed.length - 1)
+    });
+  };
+
+  const handleUpdateDay = (index: number, updates: any) => {
+    const currentDays = [...(newHolidayForm.days || [])];
+    currentDays[index] = { ...currentDays[index], ...updates };
+    setNewHolidayForm({ ...newHolidayForm, days: currentDays });
+  };
+
+  // Save from Builder (Create or Update)
+  const handleSavePackageFromBuilder = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newHolidayForm.title || !newHolidayForm.destination) {
+      alert('Package Title and Destination are required.');
+      return;
+    }
+
+    if (editingPackageId) {
+      // Update existing package
+      updateHolidayPackage(editingPackageId, newHolidayForm);
+      setEditingPackageId(null);
+      setShowAddHolidayModal(false);
+      confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+    } else {
+      // Create new package
+      const pkgId = (newHolidayForm.title).toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 24) || `pkg-${Date.now()}`;
+      const createdPkg: HolidayPackage = {
+        id: pkgId,
+        title: newHolidayForm.title,
+        destination: newHolidayForm.destination,
+        destinationType: newHolidayForm.destinationType || 'domestic',
+        region: newHolidayForm.region || 'Regional',
+        category: newHolidayForm.category || 'Customized',
+        theme: newHolidayForm.theme || 'family',
+        durationDays: newHolidayForm.durationDays || 5,
+        durationNights: newHolidayForm.durationNights || (newHolidayForm.durationDays ? newHolidayForm.durationDays - 1 : 4),
+        departureCities: newHolidayForm.departureCities || ['Mumbai', 'Delhi', 'Bengaluru', 'Ahmedabad'],
+        basePrice: newHolidayForm.basePrice || 500,
+        wholesaleCost: newHolidayForm.wholesaleCost || 400,
+        heroImage: newHolidayForm.heroImage || 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=900&q=80',
+        galleryImages: newHolidayForm.galleryImages || [],
+        highlights: newHolidayForm.highlights || ['Scenic Guided Tour', '4-Star Stay', 'Breakfast & Dinner'],
+        inclusions: newHolidayForm.inclusions || [
+          'Accommodation in 4-Star Handpicked Hotels',
+          'Daily Buffet Breakfasts & Dinners',
+          'Private AC Transfers & Sightseeing',
+          'Dedicated Hindi / English Tour Guide'
+        ],
+        exclusions: newHolidayForm.exclusions || ['Airfare / Train tickets to destination', 'Personal shopping and room service'],
+        hotelTiers: newHolidayForm.hotelTiers || {
+          standard: 'Selected 3-Star Quality Hotel',
+          deluxe: 'Selected 4-Star Premium Hotel',
+          luxury: 'Selected 5-Star Luxury Resort'
+        },
+        days: (newHolidayForm.days && newHolidayForm.days.length > 0) ? newHolidayForm.days : [
+          {
+            dayNumber: 1,
+            dayTitle: 'Arrival & Welcome Excursion',
+            destination: newHolidayForm.destination,
+            currentActivity: {
+              id: 'act-arrival',
+              title: 'Orientation City Sightseeing & Evening Walk',
+              duration: '3 Hours',
+              priceDelta: 0,
+              image: newHolidayForm.heroImage || 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=500&q=80',
+              description: 'Relaxed introductory exploration of key local viewpoints and markets.'
+            },
+            alternativeActivities: [],
+            hotelName: 'Premium 4-Star City Hotel',
+            hotelTier: 'Superior',
+            mealsIncluded: ['Dinner']
+          }
+        ],
+        isBestSeller: newHolidayForm.isBestSeller ?? false,
+        isFeatured: newHolidayForm.isFeatured ?? true,
+        isTrending: newHolidayForm.isTrending ?? false,
+        rating: newHolidayForm.rating ?? 4.6,
+        reviewCount: newHolidayForm.reviewCount ?? 140,
+        discountPercent: newHolidayForm.discountPercent || 10,
+        cancellationPolicy: newHolidayForm.cancellationPolicy || 'Free cancellation up to 10 days before departure.'
+      };
+      addHolidayPackage(createdPkg);
+      setShowAddHolidayModal(false);
+      confetti({ particleCount: 70, spread: 80, origin: { y: 0.6 } });
+    }
   };
 
   const filteredVisaApplications = visaApplications.filter(app => {
@@ -1360,6 +1599,133 @@ export const SuperAdminPanel: React.FC = () => {
                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Allows customers to book packages directly without prior inquiry</div>
               </div>
 
+              {/* Marketing & Branding Section Divider */}
+              <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--border-color)', paddingTop: '1.25rem', marginTop: '0.5rem' }}>
+                <h4 style={{ fontSize: '1rem', fontWeight: 800, color: '#d97706', margin: '0 0 6px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Sparkles size={16} /> Consumer Homepage & Dynamic Marketing Settings
+                </h4>
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0 }}>
+                  Customize customer-facing hero copy, promotional banners, assurance badges, and loyalty multipliers.
+                </p>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0, gridColumn: 'span 2' }}>
+                <label className="form-label">Hero Headline</label>
+                <input 
+                  type="text" 
+                  className="form-input"
+                  value={holidayEngineConfig.heroHeadline}
+                  onChange={e => setHolidayEngineConfig({ ...holidayEngineConfig, heroHeadline: e.target.value })}
+                  placeholder="e.g. Explore Handcrafted Holidays Across the World"
+                />
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>Primary title displayed on the holidays consumer portal</div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0, gridColumn: 'span 2' }}>
+                <label className="form-label">Hero Subheading</label>
+                <textarea 
+                  className="form-input"
+                  rows={2}
+                  value={holidayEngineConfig.heroSubheading}
+                  onChange={e => setHolidayEngineConfig({ ...holidayEngineConfig, heroSubheading: e.target.value })}
+                  placeholder="Short tagline describing handcrafted itineraries..."
+                  style={{ resize: 'vertical' }}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Announcement Banner Text</label>
+                <input 
+                  type="text" 
+                  className="form-input"
+                  value={holidayEngineConfig.announcementBanner}
+                  onChange={e => setHolidayEngineConfig({ ...holidayEngineConfig, announcementBanner: e.target.value })}
+                  placeholder="e.g. 🎉 Summer Special Offer: Flat 10% OFF"
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <label className="form-label" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input 
+                    type="checkbox" 
+                    checked={holidayEngineConfig.announcementBannerEnabled}
+                    onChange={e => setHolidayEngineConfig({ ...holidayEngineConfig, announcementBannerEnabled: e.target.checked })}
+                    style={{ width: 18, height: 18, accentColor: '#d97706' }}
+                  />
+                  <span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>Show Announcement Banner</span>
+                </label>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Displays top promotional banner across customer pages</div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Assurance Strip Title</label>
+                <input 
+                  type="text" 
+                  className="form-input"
+                  value={holidayEngineConfig.assuranceTitle}
+                  onChange={e => setHolidayEngineConfig({ ...holidayEngineConfig, assuranceTitle: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Assurance Badges (Comma-separated)</label>
+                <input 
+                  type="text" 
+                  className="form-input"
+                  value={(holidayEngineConfig.assuranceBadges || []).join(', ')}
+                  onChange={e => setHolidayEngineConfig({
+                    ...holidayEngineConfig,
+                    assuranceBadges: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                  })}
+                />
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>Chips shown inside the blue holiday assurance bar</div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Loyalty Points Rate (e.g. 0.05 = 5%)</label>
+                <input 
+                  type="number" 
+                  step="0.01"
+                  min="0"
+                  max="1"
+                  className="form-input"
+                  value={holidayEngineConfig.loyaltyPointsRate}
+                  onChange={e => setHolidayEngineConfig({ ...holidayEngineConfig, loyaltyPointsRate: parseFloat(e.target.value) || 0 })}
+                />
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>Points credited per dollar spent on holidays</div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Hotel Tier Multipliers (Comfort / Superior / Luxury)</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                  <input
+                    type="number"
+                    step="0.05"
+                    className="form-input"
+                    title="Comfort Multiplier"
+                    value={holidayEngineConfig.hotelTierMultiplierComfort}
+                    onChange={e => setHolidayEngineConfig({ ...holidayEngineConfig, hotelTierMultiplierComfort: parseFloat(e.target.value) || 0.9 })}
+                  />
+                  <input
+                    type="number"
+                    step="0.05"
+                    className="form-input"
+                    title="Superior Multiplier"
+                    value={holidayEngineConfig.hotelTierMultiplierSuperior}
+                    onChange={e => setHolidayEngineConfig({ ...holidayEngineConfig, hotelTierMultiplierSuperior: parseFloat(e.target.value) || 1.0 })}
+                  />
+                  <input
+                    type="number"
+                    step="0.05"
+                    className="form-input"
+                    title="Luxury Multiplier"
+                    value={holidayEngineConfig.hotelTierMultiplierLuxury}
+                    onChange={e => setHolidayEngineConfig({ ...holidayEngineConfig, hotelTierMultiplierLuxury: parseFloat(e.target.value) || 1.35 })}
+                  />
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>Comfort (0.9x) | Superior (1.0x) | Luxury (1.35x)</div>
+              </div>
+
               <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '0.5rem' }}>
                 <button
                   type="submit"
@@ -1505,13 +1871,42 @@ export const SuperAdminPanel: React.FC = () => {
                 </p>
               </div>
 
-              <button 
-                className="btn btn-sm btn-primary"
-                style={{ background: '#d97706', borderColor: '#d97706', display: 'flex', alignItems: 'center', gap: 6 }}
-                onClick={() => setShowAddHolidayModal(true)}
-              >
-                <Plus size={14} /> Add New Holiday Package
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <input
+                  type="file"
+                  ref={pdfInputRef}
+                  accept=".pdf,application/pdf"
+                  style={{ display: 'none' }}
+                  onChange={handlePdfUpload}
+                />
+                
+                <button 
+                  type="button"
+                  className="btn btn-sm btn-secondary"
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, borderColor: '#d97706', color: '#d97706', fontWeight: 700 }}
+                  onClick={() => pdfInputRef.current?.click()}
+                  disabled={isPdfExtracting}
+                >
+                  {isPdfExtracting ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" /> Extracting from PDF...
+                    </>
+                  ) : (
+                    <>
+                      <FileUp size={14} /> Import from PDF Brochure
+                    </>
+                  )}
+                </button>
+
+                <button 
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  style={{ background: '#d97706', borderColor: '#d97706', display: 'flex', alignItems: 'center', gap: 6 }}
+                  onClick={handleOpenNewPackageModal}
+                >
+                  <Plus size={14} /> Add New Holiday Package
+                </button>
+              </div>
             </div>
 
             <div style={{ overflowX: 'auto' }}>
@@ -1661,8 +2056,16 @@ export const SuperAdminPanel: React.FC = () => {
                             <div style={{ display: 'flex', gap: 6 }}>
                               <button
                                 className="btn btn-sm btn-secondary"
+                                style={{ padding: '3px 6px', color: '#d97706' }}
+                                title="Full Package & Itinerary Builder"
+                                onClick={() => handleOpenFullEditModal(pkg)}
+                              >
+                                <Sliders size={13} />
+                              </button>
+                              <button
+                                className="btn btn-sm btn-secondary"
                                 style={{ padding: '3px 6px' }}
-                                title="Edit Package"
+                                title="Quick Edit"
                                 onClick={() => handleStartEditHoliday(pkg)}
                               >
                                 <Edit3 size={13} />
@@ -1690,122 +2093,661 @@ export const SuperAdminPanel: React.FC = () => {
             </div>
           </div>
 
-          {/* Add Holiday Package Modal */}
+          {/* Full Holiday Package Builder & PDF Import Modal */}
           {showAddHolidayModal && (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
-              <div className="card" style={{ width: '100%', maxWidth: 580, maxHeight: '90vh', overflowY: 'auto', padding: '1.75rem' }}>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '1rem', color: '#d97706' }}>
-                  Add New Thomas Cook Holiday Package
-                </h3>
-
-                <form onSubmit={handleCreateNewHoliday} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Package Title *</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      required
-                      value={newHolidayForm.title}
-                      onChange={e => setNewHolidayForm({ ...newHolidayForm, title: e.target.value })}
-                      placeholder="e.g. Exotic Andaman Island Coral Explorer"
-                    />
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
+              <div className="card" style={{ width: '100%', maxWidth: 840, maxHeight: '92vh', overflowY: 'auto', padding: '1.75rem', borderRadius: 20 }}>
+                
+                {/* Modal Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', marginBottom: '1.25rem' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: 0, color: '#d97706', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Palmtree size={20} />
+                      {editingPackageId ? `Edit Package: ${newHolidayForm.title}` : 'Full Holiday Package Builder & PDF Importer'}
+                    </h3>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                      Configure itineraries, daily activities, inclusions, hotel tiers, and pricing.
+                    </p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddHolidayModal(false)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Destination *</label>
-                      <input
-                        type="text"
-                        className="form-input"
-                        required
-                        value={newHolidayForm.destination}
-                        onChange={e => setNewHolidayForm({ ...newHolidayForm, destination: e.target.value })}
-                        placeholder="e.g. Andaman, India"
-                      />
+                {/* PDF Extraction Strip / Dropzone */}
+                <div style={{
+                  background: 'linear-gradient(135deg, rgba(217, 119, 6, 0.08) 0%, rgba(15, 76, 164, 0.08) 100%)',
+                  border: '1.5px dashed #d97706',
+                  borderRadius: 14,
+                  padding: '1rem 1.25rem',
+                  marginBottom: '1.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '0.75rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 10, background: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
+                      <FileUp size={20} />
                     </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Destination Type</label>
-                      <select
-                        className="form-select"
-                        value={newHolidayForm.destinationType}
-                        onChange={e => setNewHolidayForm({ ...newHolidayForm, destinationType: e.target.value as any })}
-                      >
-                        <option value="domestic">Domestic India</option>
-                        <option value="international">International</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Duration (Days)</label>
-                      <input
-                        type="number"
-                        className="form-input"
-                        min="1"
-                        value={newHolidayForm.durationDays}
-                        onChange={e => setNewHolidayForm({ ...newHolidayForm, durationDays: parseInt(e.target.value) || 1 })}
-                      />
-                    </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Nights</label>
-                      <input
-                        type="number"
-                        className="form-input"
-                        min="0"
-                        value={newHolidayForm.durationNights}
-                        onChange={e => setNewHolidayForm({ ...newHolidayForm, durationNights: parseInt(e.target.value) || 0 })}
-                      />
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-heading)' }}>
+                        Instant PDF Brochure Extraction
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                        Upload a tour itinerary PDF to auto-populate all form fields, day schedules, and hotel tiers.
+                      </div>
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Wholesale Cost (USD)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <label
+                      className="btn btn-sm btn-primary"
+                      style={{
+                        background: '#d97706',
+                        borderColor: '#d97706',
+                        cursor: isPdfExtracting ? 'not-allowed' : 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        margin: 0
+                      }}
+                    >
+                      {isPdfExtracting ? (
+                        <>
+                          <RefreshCw size={14} className="animate-spin" /> Parsing Brochure...
+                        </>
+                      ) : (
+                        <>
+                          <Upload size={14} /> Upload Tour PDF
+                        </>
+                      )}
                       <input
-                        type="number"
-                        className="form-input"
-                        min="0"
-                        value={newHolidayForm.wholesaleCost}
-                        onChange={e => setNewHolidayForm({ ...newHolidayForm, wholesaleCost: parseFloat(e.target.value) || 0 })}
+                        type="file"
+                        accept=".pdf,application/pdf"
+                        style={{ display: 'none' }}
+                        disabled={isPdfExtracting}
+                        onChange={handlePdfUpload}
                       />
-                    </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Base Retail Price (USD)</label>
-                      <input
-                        type="number"
-                        className="form-input"
-                        min="0"
-                        value={newHolidayForm.basePrice}
-                        onChange={e => setNewHolidayForm({ ...newHolidayForm, basePrice: parseFloat(e.target.value) || 0 })}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Hero Image URL</label>
-                    <input
-                      type="url"
-                      className="form-input"
-                      value={newHolidayForm.heroImage}
-                      onChange={e => setNewHolidayForm({ ...newHolidayForm, heroImage: e.target.value })}
-                    />
-                  </div>
-
-                  <div className="form-group" style={{ marginBottom: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <input
-                      type="checkbox"
-                      id="isBestSellerCheck"
-                      checked={newHolidayForm.isBestSeller ?? false}
-                      onChange={e => setNewHolidayForm({ ...newHolidayForm, isBestSeller: e.target.checked })}
-                      style={{ width: 16, height: 16 }}
-                    />
-                    <label htmlFor="isBestSellerCheck" style={{ fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
-                      Mark as "Best Seller" on consumer portal
                     </label>
                   </div>
+                </div>
 
-                  <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                {/* Feedback notifications */}
+                {pdfExtractSuccess && (
+                  <div style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', color: '#059669', padding: '8px 12px', borderRadius: 8, fontSize: '0.8rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>{pdfExtractSuccess}</span>
+                    <button type="button" onClick={() => setPdfExtractSuccess(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#059669' }}>✕</button>
+                  </div>
+                )}
+                {pdfExtractError && (
+                  <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', color: '#dc2626', padding: '8px 12px', borderRadius: 8, fontSize: '0.8rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>⚠️ {pdfExtractError}</span>
+                    <button type="button" onClick={() => setPdfExtractError(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626' }}>✕</button>
+                  </div>
+                )}
+
+                {/* Builder Tabs */}
+                <div style={{ display: 'flex', gap: 6, borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem', marginBottom: '1.25rem', overflowX: 'auto' }}>
+                  {[
+                    { key: 'basic', label: '1. Overview & Info' },
+                    { key: 'pricing', label: '2. Pricing & Hotels' },
+                    { key: 'media', label: '3. Media & Gallery' },
+                    { key: 'inclusions', label: '4. Highlights & Inclusions' },
+                    { key: 'itinerary', label: `5. Day Itinerary (${(newHolidayForm.days || []).length} Days)` }
+                  ].map(tab => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setBuilderTab(tab.key as any)}
+                      style={{
+                        padding: '0.4rem 0.95rem',
+                        borderRadius: 100,
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        border: builderTab === tab.key ? '1px solid #d97706' : '1px solid var(--border-color)',
+                        background: builderTab === tab.key ? 'rgba(217, 119, 6, 0.12)' : 'var(--bg-card-subtle)',
+                        color: builderTab === tab.key ? '#d97706' : 'var(--text-main)'
+                      }}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                <form onSubmit={handleSavePackageFromBuilder} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  
+                  {/* TAB 1: OVERVIEW & INFO */}
+                  {builderTab === 'basic' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Package Title *</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          required
+                          value={newHolidayForm.title || ''}
+                          onChange={e => setNewHolidayForm({ ...newHolidayForm, title: e.target.value })}
+                          placeholder="e.g. Kashmir Majestic Valleys & Alpine Gondola Odyssey"
+                        />
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label">Destination *</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            required
+                            value={newHolidayForm.destination || ''}
+                            onChange={e => setNewHolidayForm({ ...newHolidayForm, destination: e.target.value })}
+                            placeholder="e.g. Kashmir, India"
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label">Destination Sector Type</label>
+                          <select
+                            className="form-select"
+                            value={newHolidayForm.destinationType || 'domestic'}
+                            onChange={e => setNewHolidayForm({ ...newHolidayForm, destinationType: e.target.value as any })}
+                          >
+                            <option value="domestic">Domestic India</option>
+                            <option value="international">International</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label">Region</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            value={newHolidayForm.region || ''}
+                            onChange={e => setNewHolidayForm({ ...newHolidayForm, region: e.target.value })}
+                            placeholder="e.g. North India / Europe"
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label">Category</label>
+                          <select
+                            className="form-select"
+                            value={newHolidayForm.category || 'Customized'}
+                            onChange={e => setNewHolidayForm({ ...newHolidayForm, category: e.target.value as any })}
+                          >
+                            <option value="Customized">Customized</option>
+                            <option value="Fixed Departure">Fixed Departure</option>
+                            <option value="Group Tour">Group Tour</option>
+                          </select>
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label">Theme</label>
+                          <select
+                            className="form-select"
+                            value={newHolidayForm.theme || 'family'}
+                            onChange={e => setNewHolidayForm({ ...newHolidayForm, theme: e.target.value as any })}
+                          >
+                            <option value="family">Family</option>
+                            <option value="honeymoon">Honeymoon</option>
+                            <option value="adventure">Adventure</option>
+                            <option value="luxury">Luxury</option>
+                            <option value="budget">Budget</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.75rem' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label">Duration Days</label>
+                          <input
+                            type="number"
+                            className="form-input"
+                            min="1"
+                            value={newHolidayForm.durationDays || 5}
+                            onChange={e => setNewHolidayForm({ ...newHolidayForm, durationDays: parseInt(e.target.value) || 1 })}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label">Duration Nights</label>
+                          <input
+                            type="number"
+                            className="form-input"
+                            min="0"
+                            value={newHolidayForm.durationNights || 4}
+                            onChange={e => setNewHolidayForm({ ...newHolidayForm, durationNights: parseInt(e.target.value) || 0 })}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label">Rating (0 - 5)</label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="5"
+                            className="form-input"
+                            value={newHolidayForm.rating ?? 4.7}
+                            onChange={e => setNewHolidayForm({ ...newHolidayForm, rating: parseFloat(e.target.value) || 4.5 })}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label">Review Count</label>
+                          <input
+                            type="number"
+                            min="0"
+                            className="form-input"
+                            value={newHolidayForm.reviewCount ?? 150}
+                            onChange={e => setNewHolidayForm({ ...newHolidayForm, reviewCount: parseInt(e.target.value) || 0 })}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Departure Hub Cities (Comma-separated)</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={(newHolidayForm.departureCities || []).join(', ')}
+                          onChange={e => setNewHolidayForm({
+                            ...newHolidayForm,
+                            departureCities: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                          })}
+                          placeholder="Mumbai, Delhi, Bengaluru, Ahmedabad"
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', paddingTop: 4 }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={newHolidayForm.isBestSeller ?? false}
+                            onChange={e => setNewHolidayForm({ ...newHolidayForm, isBestSeller: e.target.checked })}
+                            style={{ accentColor: '#d97706' }}
+                          />
+                          Mark as "Best Seller"
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={newHolidayForm.isFeatured ?? true}
+                            onChange={e => setNewHolidayForm({ ...newHolidayForm, isFeatured: e.target.checked })}
+                            style={{ accentColor: '#d97706' }}
+                          />
+                          Featured on Homepage
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={newHolidayForm.isTrending ?? false}
+                            onChange={e => setNewHolidayForm({ ...newHolidayForm, isTrending: e.target.checked })}
+                            style={{ accentColor: '#d97706' }}
+                          />
+                          Trending Badge
+                        </label>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 2: PRICING & HOTEL TIERS */}
+                  {builderTab === 'pricing' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label">Base Retail Price (USD) *</label>
+                          <input
+                            type="number"
+                            className="form-input"
+                            min="0"
+                            required
+                            value={newHolidayForm.basePrice || 0}
+                            onChange={e => setNewHolidayForm({ ...newHolidayForm, basePrice: parseFloat(e.target.value) || 0 })}
+                          />
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>Starting consumer rate</div>
+                        </div>
+
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label">Wholesale Cost (USD)</label>
+                          <input
+                            type="number"
+                            className="form-input"
+                            min="0"
+                            value={newHolidayForm.wholesaleCost || 0}
+                            onChange={e => setNewHolidayForm({ ...newHolidayForm, wholesaleCost: parseFloat(e.target.value) || 0 })}
+                          />
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>Internal cost basis</div>
+                        </div>
+
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label">Strikethrough Discount (%)</label>
+                          <input
+                            type="number"
+                            className="form-input"
+                            min="0"
+                            max="100"
+                            value={newHolidayForm.discountPercent || 0}
+                            onChange={e => setNewHolidayForm({ ...newHolidayForm, discountPercent: parseFloat(e.target.value) || 0 })}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Cancellation Policy</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={newHolidayForm.cancellationPolicy || ''}
+                          onChange={e => setNewHolidayForm({ ...newHolidayForm, cancellationPolicy: e.target.value })}
+                          placeholder="e.g. Free cancellation up to 15 days before departure."
+                        />
+                      </div>
+
+                      {/* Hotel Tiers */}
+                      <div style={{ background: 'var(--bg-card-subtle)', padding: '1rem', borderRadius: 12, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <h5 style={{ margin: 0, fontWeight: 800, fontSize: '0.88rem', color: '#d97706' }}>
+                          Verified Hotel Accommodations by Tier
+                        </h5>
+
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '0.78rem' }}>Comfort 3-Star Hotel Name</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            value={newHolidayForm.hotelTiers?.standard || ''}
+                            onChange={e => setNewHolidayForm({
+                              ...newHolidayForm,
+                              hotelTiers: { ...(newHolidayForm.hotelTiers || { deluxe: '', luxury: '' }), standard: e.target.value }
+                            })}
+                            placeholder="e.g. Grand Mumtaz / Mascot Houseboat"
+                          />
+                        </div>
+
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '0.78rem' }}>Superior 4-Star Hotel Name (Recommended)</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            value={newHolidayForm.hotelTiers?.deluxe || ''}
+                            onChange={e => setNewHolidayForm({
+                              ...newHolidayForm,
+                              hotelTiers: { ...(newHolidayForm.hotelTiers || { standard: '', luxury: '' }), deluxe: e.target.value }
+                            })}
+                            placeholder="e.g. Radisson Srinagar / Pahalgam Hotel"
+                          />
+                        </div>
+
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '0.78rem' }}>Luxury 5-Star Hotel Name</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            value={newHolidayForm.hotelTiers?.luxury || ''}
+                            onChange={e => setNewHolidayForm({
+                              ...newHolidayForm,
+                              hotelTiers: { ...(newHolidayForm.hotelTiers || { standard: '', deluxe: '' }), luxury: e.target.value }
+                            })}
+                            placeholder="e.g. The Khyber Himalayan Resort & Spa"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 3: MEDIA & GALLERY */}
+                  {builderTab === 'media' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Hero Banner Image URL *</label>
+                        <input
+                          type="url"
+                          className="form-input"
+                          required
+                          value={newHolidayForm.heroImage || ''}
+                          onChange={e => setNewHolidayForm({ ...newHolidayForm, heroImage: e.target.value })}
+                          placeholder="https://images.unsplash.com/..."
+                        />
+                      </div>
+
+                      {newHolidayForm.heroImage && (
+                        <div style={{ height: 160, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                          <img
+                            src={newHolidayForm.heroImage}
+                            alt="Hero Preview"
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            onError={e => { (e.target as any).style.display = 'none'; }}
+                          />
+                        </div>
+                      )}
+
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Gallery Images (One URL per line)</label>
+                        <textarea
+                          className="form-input"
+                          rows={4}
+                          value={(newHolidayForm.galleryImages || []).join('\n')}
+                          onChange={e => setNewHolidayForm({
+                            ...newHolidayForm,
+                            galleryImages: e.target.value.split('\n').map(s => s.trim()).filter(Boolean)
+                          })}
+                          placeholder="https://images.unsplash.com/photo-1&#10;https://images.unsplash.com/photo-2"
+                        />
+                      </div>
+
+                      {newHolidayForm.galleryImages && newHolidayForm.galleryImages.length > 0 && (
+                        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 6 }}>
+                          {newHolidayForm.galleryImages.map((img, i) => (
+                            <img
+                              key={i}
+                              src={img}
+                              alt="Thumbnail"
+                              style={{ width: 80, height: 60, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border-color)' }}
+                              onError={e => { (e.target as any).style.display = 'none'; }}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* TAB 4: HIGHLIGHTS, INCLUSIONS & EXCLUSIONS */}
+                  {builderTab === 'inclusions' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Package Highlights (One per line)</label>
+                        <textarea
+                          className="form-input"
+                          rows={3}
+                          value={(newHolidayForm.highlights || []).join('\n')}
+                          onChange={e => setNewHolidayForm({
+                            ...newHolidayForm,
+                            highlights: e.target.value.split('\n').map(s => s.trim()).filter(Boolean)
+                          })}
+                          placeholder="Luxury Dal Lake Houseboat Stay&#10;Gulmarg Gondola Phase 1 Ticket Included"
+                        />
+                      </div>
+
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Inclusions (One per line)</label>
+                        <textarea
+                          className="form-input"
+                          rows={4}
+                          value={(newHolidayForm.inclusions || []).join('\n')}
+                          onChange={e => setNewHolidayForm({
+                            ...newHolidayForm,
+                            inclusions: e.target.value.split('\n').map(s => s.trim()).filter(Boolean)
+                          })}
+                          placeholder="Return Airport Transfers in AC Cab&#10;Daily Breakfast & Dinners&#10;Dedicated Tour Driver"
+                        />
+                      </div>
+
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Exclusions (One per line)</label>
+                        <textarea
+                          className="form-input"
+                          rows={3}
+                          value={(newHolidayForm.exclusions || []).join('\n')}
+                          onChange={e => setNewHolidayForm({
+                            ...newHolidayForm,
+                            exclusions: e.target.value.split('\n').map(s => s.trim()).filter(Boolean)
+                          })}
+                          placeholder="Domestic Airfare&#10;Personal Pony Treks&#10;Travel Insurance"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 5: DAY-BY-DAY ITINERARY BUILDER */}
+                  {builderTab === 'itinerary' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <h4 style={{ margin: 0, fontWeight: 800, fontSize: '0.95rem' }}>
+                            Day Schedules ({(newHolidayForm.days || []).length} Days Total)
+                          </h4>
+                          <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                            Customize destinations, activities, hotels, and included meals for each day.
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-secondary"
+                          style={{ display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700 }}
+                          onClick={handleAddDay}
+                        >
+                          <Plus size={14} /> Add Day
+                        </button>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '420px', overflowY: 'auto', paddingRight: 4 }}>
+                        {(newHolidayForm.days || []).map((day, idx) => (
+                          <div
+                            key={idx}
+                            style={{
+                              background: 'var(--bg-card-subtle)',
+                              border: '1px solid var(--border-color)',
+                              borderRadius: 12,
+                              padding: '1rem',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.75rem'
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ background: '#d97706', color: '#fff', fontSize: '0.72rem', fontWeight: 800, padding: '2px 8px', borderRadius: 4 }}>
+                                Day {day.dayNumber}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveDay(idx)}
+                                style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 2 }}
+                                title="Delete this day"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.5rem' }}>
+                              <input
+                                type="text"
+                                className="form-input"
+                                style={{ fontSize: '0.82rem', padding: '4px 8px' }}
+                                value={day.dayTitle}
+                                onChange={e => handleUpdateDay(idx, { dayTitle: e.target.value })}
+                                placeholder="Day Title (e.g. Arrival in Srinagar & Sunset Shikara)"
+                              />
+                              <input
+                                type="text"
+                                className="form-input"
+                                style={{ fontSize: '0.82rem', padding: '4px 8px' }}
+                                value={day.destination || ''}
+                                onChange={e => handleUpdateDay(idx, { destination: e.target.value })}
+                                placeholder="Destination City"
+                              />
+                            </div>
+
+                            {/* Scheduled Activity */}
+                            <div style={{ background: 'var(--bg-card)', padding: '0.75rem', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.5rem' }}>
+                                <input
+                                  type="text"
+                                  className="form-input"
+                                  style={{ fontSize: '0.8rem', padding: '3px 6px' }}
+                                  value={day.currentActivity?.title || ''}
+                                  onChange={e => handleUpdateDay(idx, {
+                                    currentActivity: { ...day.currentActivity, title: e.target.value }
+                                  })}
+                                  placeholder="Primary Activity Title"
+                                />
+                                <input
+                                  type="text"
+                                  className="form-input"
+                                  style={{ fontSize: '0.8rem', padding: '3px 6px' }}
+                                  value={day.currentActivity?.duration || ''}
+                                  onChange={e => handleUpdateDay(idx, {
+                                    currentActivity: { ...day.currentActivity, duration: e.target.value }
+                                  })}
+                                  placeholder="Duration (e.g. 3 Hours)"
+                                />
+                              </div>
+                              <input
+                                type="text"
+                                className="form-input"
+                                style={{ fontSize: '0.78rem', padding: '3px 6px' }}
+                                value={day.currentActivity?.description || ''}
+                                onChange={e => handleUpdateDay(idx, {
+                                  currentActivity: { ...day.currentActivity, description: e.target.value }
+                                })}
+                                placeholder="Brief activity description..."
+                              />
+                            </div>
+
+                            {/* Hotel & Meals Row */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '0.5rem', alignItems: 'center' }}>
+                              <input
+                                type="text"
+                                className="form-input"
+                                style={{ fontSize: '0.8rem', padding: '3px 6px' }}
+                                value={day.hotelName || ''}
+                                onChange={e => handleUpdateDay(idx, { hotelName: e.target.value })}
+                                placeholder="Hotel / Stay Name"
+                              />
+                              <div style={{ display: 'flex', gap: 8, fontSize: '0.75rem' }}>
+                                {['Breakfast', 'Lunch', 'Dinner'].map(meal => {
+                                  const meals = day.mealsIncluded || [];
+                                  const checked = meals.includes(meal);
+                                  return (
+                                    <label key={meal} style={{ display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer' }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={e => {
+                                          const nextMeals = e.target.checked
+                                            ? [...meals, meal]
+                                            : meals.filter(m => m !== meal);
+                                          handleUpdateDay(idx, { mealsIncluded: nextMeals });
+                                        }}
+                                        style={{ accentColor: '#d97706' }}
+                                      />
+                                      {meal.slice(0, 1)}
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Modal Action Buttons */}
+                  <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', borderTop: '1px solid var(--border-color)', paddingTop: '1rem', marginTop: '0.5rem' }}>
                     <button
                       type="button"
                       className="btn btn-secondary"
@@ -1816,9 +2758,9 @@ export const SuperAdminPanel: React.FC = () => {
                     <button
                       type="submit"
                       className="btn btn-primary"
-                      style={{ background: '#d97706', borderColor: '#d97706' }}
+                      style={{ background: '#d97706', borderColor: '#d97706', fontWeight: 800, padding: '0.6rem 1.5rem' }}
                     >
-                      Create Package
+                      {editingPackageId ? 'Save Package Changes' : 'Publish & Save Package'}
                     </button>
                   </div>
                 </form>
