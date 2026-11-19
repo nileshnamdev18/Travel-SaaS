@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { HolidayPackage, ActivityOption, HolidayDestinationType, HolidayTheme } from '../../types';
 import {
@@ -52,6 +52,28 @@ export const HolidaysModule: React.FC = () => {
   // Search & Filters State
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchPopupOpen, setIsSearchPopupOpen] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  // Close search popup on clicking outside
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setIsSearchPopupOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  // Live Matching Search Packages for dropdown
+  const matchingSearchPackages = searchQuery.trim()
+    ? holidayPackages.filter(pkg =>
+        pkg.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        pkg.destination.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (pkg.region && pkg.region.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (pkg.highlights && pkg.highlights.some(h => h.toLowerCase().includes(searchQuery.toLowerCase())))
+      )
+    : [];
   const [destTypeFilter, setDestTypeFilter] = useState<'all' | 'domestic' | 'international'>('all');
   const [tourCategoryFilter, setTourCategoryFilter] = useState<string>('all');
   const [themeFilter, setThemeFilter] = useState<HolidayTheme>('all');
@@ -1118,7 +1140,8 @@ export const HolidaysModule: React.FC = () => {
           padding: '3rem 2.5rem',
           color: '#ffffff',
           position: 'relative',
-          overflow: 'hidden',
+          overflow: 'visible', // Must be visible so the search popup floats cleanly above page without clipping!
+          zIndex: 40,
           boxShadow: '0 12px 35px rgba(15, 76, 164, 0.25)'
         }}
       >
@@ -1136,7 +1159,7 @@ export const HolidaysModule: React.FC = () => {
           </p>
 
           {/* 60px Rounded Hero Search Bar */}
-          <div style={{ position: 'relative', maxWidth: 640 }}>
+          <div ref={searchContainerRef} style={{ position: 'relative', maxWidth: 640 }}>
             <div
               style={{
                 height: 60,
@@ -1145,27 +1168,72 @@ export const HolidaysModule: React.FC = () => {
                 padding: '0.4rem 0.6rem 0.4rem 1.5rem',
                 display: 'flex',
                 alignItems: 'center',
-                boxShadow: '0 10px 25px rgba(0, 0, 0, 0.15)',
-                cursor: 'pointer'
+                boxShadow: isSearchPopupOpen ? '0 12px 30px rgba(0, 0, 0, 0.25)' : '0 10px 25px rgba(0, 0, 0, 0.15)',
+                border: isSearchPopupOpen ? '2px solid #FEE900' : '2px solid transparent',
+                transition: 'all 0.2s ease',
+                position: 'relative',
+                zIndex: 1001
               }}
-              onClick={() => setIsSearchPopupOpen(true)}
             >
               <Search size={20} color="#0F4CA4" style={{ marginRight: 12, flexShrink: 0 }} />
               <input
                 type="text"
                 placeholder='Search "Kashmir", "Dubai", "Switzerland", "Bali"...'
                 value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
+                onFocus={() => setIsSearchPopupOpen(true)}
+                onChange={e => {
+                  setSearchQuery(e.target.value);
+                  setIsSearchPopupOpen(true);
+                }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    setIsSearchPopupOpen(false);
+                    document.getElementById('holiday-packages-catalog')?.scrollIntoView({ behavior: 'smooth' });
+                  }
+                }}
                 style={{
                   border: 'none',
                   outline: 'none',
                   flex: 1,
                   fontSize: '0.95rem',
                   color: '#24262D',
-                  fontWeight: 500
+                  fontWeight: 500,
+                  background: 'transparent'
                 }}
               />
+
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSearchQuery('');
+                  }}
+                  style={{
+                    background: '#EDEEF1',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: 28,
+                    height: 28,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginRight: 8,
+                    cursor: 'pointer',
+                    color: '#565E73'
+                  }}
+                  title="Clear search"
+                >
+                  <X size={14} />
+                </button>
+              )}
+
               <button
+                type="button"
+                onClick={() => {
+                  setIsSearchPopupOpen(false);
+                  document.getElementById('holiday-packages-catalog')?.scrollIntoView({ behavior: 'smooth' });
+                }}
                 style={{
                   width: 46,
                   height: 46,
@@ -1176,72 +1244,210 @@ export const HolidaysModule: React.FC = () => {
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: '#fff',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  flexShrink: 0
                 }}
+                title="Search packages"
               >
                 <ArrowRight size={18} />
               </button>
             </div>
 
-            {/* Popular Search Overlay Popup */}
+            {/* Popular & Live Search Overlay Popup */}
             {isSearchPopupOpen && (
               <div
                 style={{
                   position: 'absolute',
-                  top: 70,
+                  top: 'calc(100% + 12px)',
                   left: 0,
                   right: 0,
                   background: '#FFFFFF',
                   borderRadius: 20,
-                  padding: '1.5rem',
-                  boxShadow: '0 20px 35px rgba(0,0,0,0.2)',
-                  zIndex: 100,
-                  border: '1px solid #EDEEF1'
+                  padding: '1.25rem 1.5rem',
+                  boxShadow: '0 25px 60px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,0,0,0.06)',
+                  zIndex: 1000,
+                  border: '1px solid #EDEEF1',
+                  maxHeight: '460px',
+                  overflowY: 'auto'
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <span style={{ fontSize: '0.78rem', color: '#667085', fontWeight: 800, textTransform: 'uppercase' }}>
-                    Most Searched International Destinations
-                  </span>
-                  <button onClick={() => setIsSearchPopupOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#565E73' }}>
-                    <X size={16} />
-                  </button>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 }}>
-                  {popularInternational.map((dest, i) => (
-                    <div
-                      key={i}
-                      onClick={() => {
-                        setSearchQuery(dest.name);
-                        setIsSearchPopupOpen(false);
-                      }}
-                      style={{ cursor: 'pointer', textAlign: 'center' }}
-                    >
-                      <img src={dest.img} alt={dest.name} style={{ width: '100%', height: 60, objectFit: 'cover', borderRadius: 8, marginBottom: 4 }} />
-                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#24262D' }}>{dest.name}</div>
+                {/* 1. If user typed a search query: show instant matching tours */}
+                {searchQuery.trim().length > 0 && (
+                  <div style={{ marginBottom: '1.25rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <span style={{ fontSize: '0.8rem', color: '#0F4CA4', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Matching Packages for "{searchQuery}" ({matchingSearchPackages.length})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsSearchPopupOpen(false)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#565E73' }}
+                        title="Close popup"
+                      >
+                        <X size={16} />
+                      </button>
                     </div>
-                  ))}
-                </div>
 
-                <div style={{ fontSize: '0.78rem', color: '#667085', fontWeight: 800, textTransform: 'uppercase', marginBottom: 12 }}>
-                  Most Searched Domestic Destinations
-                </div>
+                    {matchingSearchPackages.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {matchingSearchPackages.map(pkg => (
+                          <div
+                            key={pkg.id}
+                            onClick={() => {
+                              setSelectedPackage(pkg);
+                              setIsSearchPopupOpen(false);
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 12,
+                              padding: '10px 12px',
+                              borderRadius: 12,
+                              border: '1px solid #EDEEF1',
+                              cursor: 'pointer',
+                              background: '#FAFBFD',
+                              transition: 'all 0.15s ease'
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.background = '#EFF8FF')}
+                            onMouseLeave={e => (e.currentTarget.style.background = '#FAFBFD')}
+                          >
+                            <img
+                              src={pkg.heroImage}
+                              alt={pkg.title}
+                              style={{ width: 56, height: 56, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }}
+                            />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#24262D', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {pkg.title}
+                              </div>
+                              <div style={{ fontSize: '0.74rem', color: '#565E73', display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                                <span>📍 {pkg.destination}</span>
+                                <span>•</span>
+                                <span>⏱️ {pkg.durationDays}D / {pkg.durationNights || pkg.durationDays - 1}N</span>
+                                <span style={{
+                                  background: pkg.destinationType === 'domestic' ? 'rgba(5,150,105,0.1)' : 'rgba(15,76,164,0.1)',
+                                  color: pkg.destinationType === 'domestic' ? '#059669' : '#0F4CA4',
+                                  padding: '1px 6px',
+                                  borderRadius: 4,
+                                  fontWeight: 700,
+                                  fontSize: '0.68rem'
+                                }}>
+                                  {pkg.destinationType === 'domestic' ? 'Domestic' : 'International'}
+                                </span>
+                              </div>
+                            </div>
+                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                              <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0F4CA4' }}>
+                                {formatPrice(getPackageSellingPrice(pkg))}
+                              </div>
+                              <div style={{ fontSize: '0.68rem', color: '#FF7700', fontWeight: 700 }}>
+                                View Details →
+                              </div>
+                            </div>
+                          </div>
+                        ))}
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-                  {popularDomestic.map((dest, i) => (
-                    <div
-                      key={i}
-                      onClick={() => {
-                        setSearchQuery(dest.name);
-                        setIsSearchPopupOpen(false);
-                      }}
-                      style={{ cursor: 'pointer', textAlign: 'center' }}
-                    >
-                      <img src={dest.img} alt={dest.name} style={{ width: '100%', height: 60, objectFit: 'cover', borderRadius: 8, marginBottom: 4 }} />
-                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#24262D' }}>{dest.name}</div>
-                    </div>
-                  ))}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsSearchPopupOpen(false);
+                            document.getElementById('holiday-packages-catalog')?.scrollIntoView({ behavior: 'smooth' });
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '9px',
+                            background: '#0F4CA4',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: 10,
+                            fontWeight: 700,
+                            fontSize: '0.82rem',
+                            cursor: 'pointer',
+                            marginTop: 4
+                          }}
+                        >
+                          Show All {matchingSearchPackages.length} Results in Catalog Below ↓
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ padding: '1rem', textAlign: 'center', background: '#F8FAFC', borderRadius: 12 }}>
+                        <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#24262D', marginBottom: 4 }}>
+                          No packages found matching "{searchQuery}"
+                        </div>
+                        <div style={{ fontSize: '0.76rem', color: '#64748B' }}>
+                          Try searching for a destination or click one of the popular locations below:
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 2. Most Searched Destinations */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <span style={{ fontSize: '0.78rem', color: '#667085', fontWeight: 800, textTransform: 'uppercase' }}>
+                      Most Searched International Destinations
+                    </span>
+                    {!searchQuery && (
+                      <button onClick={() => setIsSearchPopupOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#565E73' }}>
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
+                    {popularInternational.map((dest, i) => (
+                      <div
+                        key={i}
+                        onClick={() => {
+                          setSearchQuery(dest.name);
+                          setIsSearchPopupOpen(false);
+                          document.getElementById('holiday-packages-catalog')?.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                        style={{
+                          cursor: 'pointer',
+                          textAlign: 'center',
+                          borderRadius: 10,
+                          padding: 4,
+                          transition: 'transform 0.15s ease'
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-2px)')}
+                        onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}
+                      >
+                        <img src={dest.img} alt={dest.name} style={{ width: '100%', height: 60, objectFit: 'cover', borderRadius: 8, marginBottom: 4 }} />
+                        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#24262D' }}>{dest.name}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ fontSize: '0.78rem', color: '#667085', fontWeight: 800, textTransform: 'uppercase', marginBottom: 12 }}>
+                    Most Searched Domestic Destinations
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+                    {popularDomestic.map((dest, i) => (
+                      <div
+                        key={i}
+                        onClick={() => {
+                          setSearchQuery(dest.name);
+                          setIsSearchPopupOpen(false);
+                          document.getElementById('holiday-packages-catalog')?.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                        style={{
+                          cursor: 'pointer',
+                          textAlign: 'center',
+                          borderRadius: 10,
+                          padding: 4,
+                          transition: 'transform 0.15s ease'
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-2px)')}
+                        onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}
+                      >
+                        <img src={dest.img} alt={dest.name} style={{ width: '100%', height: 60, objectFit: 'cover', borderRadius: 8, marginBottom: 4 }} />
+                        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#24262D' }}>{dest.name}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -1456,7 +1662,7 @@ export const HolidaysModule: React.FC = () => {
       )}
 
       {/* REAL THOMAS COOK PACKAGE CARDS LISTING (SRP) */}
-      <div>
+      <div id="holiday-packages-catalog">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: 8 }}>
           <div>
             <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#24262D', margin: 0 }}>
@@ -1471,9 +1677,65 @@ export const HolidaysModule: React.FC = () => {
           </div>
         </div>
 
+        {/* Active Search Term Filter Pill */}
+        {searchQuery.trim() && (
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            background: '#EFF8FF',
+            border: '1px solid #B2DDFF',
+            padding: '6px 14px',
+            borderRadius: 20,
+            fontSize: '0.82rem',
+            color: '#0F4CA4',
+            fontWeight: 600,
+            marginBottom: '1.25rem'
+          }}>
+            <span>Showing results matching <strong>"{searchQuery}"</strong> ({filteredPackages.length} found)</span>
+            <button
+              onClick={() => setSearchQuery('')}
+              style={{
+                background: '#0F4CA4',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '50%',
+                width: 18,
+                height: 18,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                fontSize: '0.7rem'
+              }}
+              title="Clear search query"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {filteredPackages.length === 0 ? (
-          <div className="card" style={{ padding: '3rem', textAlign: 'center', color: '#565E73', borderRadius: 16 }}>
-            No packages matched your filters. Try clearing search or choosing another destination.
+          <div className="card" style={{ padding: '3.5rem 1.5rem', textAlign: 'center', color: '#565E73', borderRadius: 16 }}>
+            <div style={{ fontSize: '2rem', marginBottom: 8 }}>🔍</div>
+            <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#24262D', marginBottom: 6 }}>
+              No packages match "{searchQuery}"
+            </div>
+            <p style={{ maxWidth: 460, margin: '0 auto 1.5rem', fontSize: '0.85rem', color: '#64748B' }}>
+              We couldn't find any tours matching your exact search filters. Try clearing your search term or exploring all destinations.
+            </p>
+            <button
+              className="btn btn-primary"
+              style={{ background: '#0F4CA4', borderColor: '#0F4CA4', borderRadius: 20, padding: '8px 24px', fontWeight: 700 }}
+              onClick={() => {
+                setSearchQuery('');
+                setDestTypeFilter('all');
+                setTourCategoryFilter('all');
+                setThemeFilter('all');
+              }}
+            >
+              Show All {holidayPackages.length} Packages
+            </button>
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1.75rem' }}>
