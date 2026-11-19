@@ -149,12 +149,40 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, initialMode = 'lo
 
         {/* Quick login hints */}
         <div style={{
-          background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '0.5rem',
-          padding: '0.65rem 0.875rem', marginTop: '1rem', fontSize: '0.78rem', color: '#0369a1'
+          background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '0.65rem',
+          padding: '0.75rem', marginTop: '1rem', fontSize: '0.78rem', color: '#0369a1'
         }}>
-          <strong>Demo credentials:</strong><br />
-          Admin: admin@travelpulse.in / Admin@123<br />
-          Customer: customer@travelpulse.in / Customer@123
+          <div style={{ fontWeight: 700, marginBottom: '6px' }}>⚡ Quick 1-Click Demo Login:</div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setForm({ name: '', email: 'admin@travelpulse.in', password: 'Admin@123', phone: '' });
+                setMode('login');
+                setError('');
+              }}
+              style={{
+                background: '#0F4CA4', color: '#fff', border: 'none', borderRadius: '4px',
+                padding: '4px 8px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer'
+              }}
+            >
+              Fill Super Admin
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setForm({ name: '', email: 'customer@travelpulse.in', password: 'Customer@123', phone: '' });
+                setMode('login');
+                setError('');
+              }}
+              style={{
+                background: '#059669', color: '#fff', border: 'none', borderRadius: '4px',
+                padding: '4px 8px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer'
+              }}
+            >
+              Fill Demo Customer
+            </button>
+          </div>
         </div>
 
         {/* Toggle mode */}

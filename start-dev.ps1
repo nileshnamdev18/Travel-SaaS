@@ -4,15 +4,23 @@
 Write-Host "🚀 Starting TravelPulse Development Stack..." -ForegroundColor Cyan
 Write-Host ""
 
-# Check MongoDB
+$mongoExe = "C:\Program Files\MongoDB\Server\7.0\bin\mongod.exe"
+$dbPath = "c:\Users\Nilesh Namdev\Desktop\Travel SaaS\server\data\db"
+
+# Check & start MongoDB
 Write-Host "📦 Checking MongoDB..." -ForegroundColor Yellow
 $mongoRunning = Get-Process -Name "mongod" -ErrorAction SilentlyContinue
 if ($mongoRunning) {
-    Write-Host "  ✅ MongoDB is running" -ForegroundColor Green
+    Write-Host "  ✅ MongoDB is already running" -ForegroundColor Green
 } else {
-    Write-Host "  ⚠️  MongoDB not detected. Make sure mongod is running!" -ForegroundColor Red
-    Write-Host "  → Start MongoDB: mongod --dbpath C:\data\db" -ForegroundColor Yellow
-    Write-Host ""
+    if (Test-Path $mongoExe) {
+        Write-Host "  🔄 Starting MongoDB Server locally..." -ForegroundColor Cyan
+        Start-Process -FilePath $mongoExe -ArgumentList "--dbpath `"$dbPath`"" -WindowStyle Hidden
+        Start-Sleep 2
+        Write-Host "  ✅ MongoDB started with dbpath: $dbPath" -ForegroundColor Green
+    } else {
+        Write-Host "  ⚠️  mongod.exe not found at standard path. Please start MongoDB manually." -ForegroundColor Red
+    }
 }
 
 # Start API server in background
@@ -28,7 +36,7 @@ Start-Sleep 3
 Write-Host ""
 Write-Host "🌱 Seeding database (packages + admin user)..." -ForegroundColor Yellow
 Set-Location "c:\Users\Nilesh Namdev\Desktop\Travel SaaS\server"
-npx ts-node src/scripts/seed.ts 2>&1 | Select-Object -Last 8
+npm run seed 2>&1 | Select-Object -Last 8
 
 # Start Vite dev server
 Write-Host ""

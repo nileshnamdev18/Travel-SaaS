@@ -1,12 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
+import { AuthModal } from './AuthModal';
 import { CurrencyCode } from '../../types';
-import { Compass, Luggage, Sun, Moon, Shield, Phone, Tag, MessageSquare, Menu, X } from 'lucide-react';
+import { Compass, Luggage, Sun, Moon, Shield, Phone, Tag, MessageSquare, LogIn, LogOut, UserCheck } from 'lucide-react';
 
 export const NavigationBar: React.FC = () => {
   const { activePortal, setActivePortal, activeRole, setActiveRole, activeCurrency, setActiveCurrency, theme, toggleTheme, isMyTripsOpen, setIsMyTripsOpen, bookings } = useApp();
+  const { user, isAuthenticated, logout } = useAuth();
   const [copiedCode, setCopiedCode] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
+
+  // Synchronize AuthContext role with AppContext role
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      if (user.role === 'super_admin') {
+        setActiveRole('super_admin');
+      } else {
+        setActiveRole('customer');
+      }
+    }
+  }, [isAuthenticated, user, setActiveRole]);
 
   const copyPromo = () => {
     navigator.clipboard.writeText('AKBAR25');
@@ -14,7 +29,23 @@ export const NavigationBar: React.FC = () => {
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
-  const isAdmin = activeRole === 'super_admin';
+  const isAdmin = activeRole === 'super_admin' || user?.role === 'super_admin';
+
+  const handleAdminClick = () => {
+    if (isAuthenticated && user?.role === 'super_admin') {
+      setActiveRole('super_admin');
+      setActivePortal('admin');
+    } else {
+      setAuthModalMode('login');
+      setShowAuthModal(true);
+    }
+  };
+
+  const handleLogout = () => {
+    logout();
+    setActiveRole('customer');
+    setActivePortal('customer');
+  };
 
   return (
     <>
@@ -32,15 +63,31 @@ export const NavigationBar: React.FC = () => {
             <span>Use Code <strong style={{ color: 'var(--brand-accent)' }}>AKBAR25</strong> for Flat ₹1,500 OFF</span>
             <span style={{ fontSize: '0.7rem', color: copiedCode ? 'var(--color-success)' : 'var(--text-muted)', fontWeight: 600 }}>{copiedCode ? '✓ Copied!' : '(Copy)'}</span>
           </div>
+
           {!isAdmin && (
-            <button onClick={() => { setActiveRole('super_admin'); setActivePortal('admin'); }} style={{ background: 'var(--brand-navy)', color: '#ffffff', border: 'none', padding: '2px 10px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase' }}>
+            <button
+              onClick={handleAdminClick}
+              style={{ background: 'var(--brand-navy)', color: '#ffffff', border: 'none', padding: '2px 10px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase' }}
+            >
               Admin Login
             </button>
           )}
+
           {isAdmin && (
-            <button onClick={() => { setActiveRole('customer'); setActivePortal('customer'); }} style={{ background: 'var(--color-success)', color: '#ffffff', border: 'none', padding: '2px 10px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase' }}>
-              ← Exit Admin
-            </button>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <button
+                onClick={() => {
+                  if (activePortal === 'admin') {
+                    setActivePortal('customer');
+                  } else {
+                    setActivePortal('admin');
+                  }
+                }}
+                style={{ background: activePortal === 'admin' ? 'var(--color-success)' : 'var(--brand-navy)', color: '#ffffff', border: 'none', padding: '2px 10px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase' }}
+              >
+                {activePortal === 'admin' ? '← Customer View' : '⚙️ SuperAdmin Panel'}
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -48,7 +95,7 @@ export const NavigationBar: React.FC = () => {
       <header className="top-nav">
         <div className="nav-inner">
           {/* Brand Logo */}
-          <div className="brand-logo" style={{ flexShrink: 0, cursor: 'pointer' }} onClick={() => { setActivePortal('customer'); setActiveRole('customer'); }}>
+          <div className="brand-logo" style={{ flexShrink: 0, cursor: 'pointer' }} onClick={() => { setActivePortal('customer'); }}>
             <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'linear-gradient(135deg, #032559 0%, #fa3a3a 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', boxShadow: '0 2px 8px rgba(3,37,89,0.25)' }}>
               <Compass size={20} />
             </div>
@@ -57,7 +104,7 @@ export const NavigationBar: React.FC = () => {
                 <span style={{ color: 'var(--text-heading)', fontWeight: 900, fontSize: '1.25rem', letterSpacing: '-0.02em' }}>TRAVEL</span>
                 <span style={{ color: 'var(--brand-accent)', fontWeight: 900, fontSize: '1.25rem', letterSpacing: '-0.02em' }}>PULSE</span>
               </div>
-              <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Akbar Travels Partner</div>
+              <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Akbar Travels & Thomas Cook Partner</div>
             </div>
           </div>
 
@@ -72,7 +119,7 @@ export const NavigationBar: React.FC = () => {
             </select>
 
             {/* My Trips */}
-            {!isAdmin && (
+            {activePortal !== 'admin' && (
               <button className="btn btn-sm btn-secondary" onClick={() => setIsMyTripsOpen(true)} style={{ gap: '6px' }}>
                 <Luggage size={14} />
                 <span>My Trips</span>
@@ -85,19 +132,62 @@ export const NavigationBar: React.FC = () => {
             )}
 
             {/* Chat Assistant */}
-            {!isAdmin && (
+            {activePortal !== 'admin' && (
               <button className="btn btn-sm btn-secondary" onClick={() => setActivePortal('customer')} style={{ gap: '6px', background: 'rgba(37,211,102,0.1)', borderColor: '#25D366', color: '#25D366' }}>
                 <MessageSquare size={14} />
                 <span>AI Assistant</span>
               </button>
             )}
 
-            {/* Admin Badge */}
-            {isAdmin && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.3)', padding: '4px 12px', borderRadius: 'var(--radius-full)', fontSize: '0.82rem', fontWeight: 700, color: '#dc2626' }}>
+            {/* Admin Portal Shortcut Button */}
+            {isAdmin && activePortal !== 'admin' && (
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={() => { setActiveRole('super_admin'); setActivePortal('admin'); }}
+                style={{ gap: '6px', background: '#d97706', borderColor: '#d97706' }}
+              >
                 <Shield size={14} />
-                Super Admin
+                <span>Admin Hub</span>
+              </button>
+            )}
+
+            {/* Auth Button or User Badge */}
+            {isAuthenticated && user ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: user.role === 'super_admin' ? 'rgba(217,119,6,0.1)' : 'rgba(5,150,105,0.1)',
+                  border: `1px solid ${user.role === 'super_admin' ? 'rgba(217,119,6,0.3)' : 'rgba(5,150,105,0.3)'}`,
+                  padding: '4px 10px',
+                  borderRadius: 'var(--radius-full)',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  color: user.role === 'super_admin' ? '#d97706' : '#059669'
+                }}>
+                  <UserCheck size={13} />
+                  <span>{user.name.split(' ')[0]}</span>
+                  {user.role === 'super_admin' && <span style={{ fontSize: '0.68rem', background: '#d97706', color: '#fff', padding: '1px 5px', borderRadius: 4 }}>ADMIN</span>}
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="btn btn-sm btn-secondary"
+                  style={{ padding: '4px 8px', fontSize: '0.78rem' }}
+                  title="Sign Out"
+                >
+                  <LogOut size={13} />
+                </button>
               </div>
+            ) : (
+              <button
+                className="btn btn-sm btn-secondary"
+                onClick={() => { setAuthModalMode('login'); setShowAuthModal(true); }}
+                style={{ gap: '6px' }}
+              >
+                <LogIn size={14} />
+                <span>Sign In</span>
+              </button>
             )}
 
             {/* Theme Toggle */}
@@ -108,6 +198,17 @@ export const NavigationBar: React.FC = () => {
           </div>
         </div>
       </header>
+
+      {/* Real JWT Auth Modal */}
+      {showAuthModal && (
+        <AuthModal
+          initialMode={authModalMode}
+          onClose={() => setShowAuthModal(false)}
+          onSuccess={() => {
+            setShowAuthModal(false);
+          }}
+        />
+      )}
     </>
   );
 };

@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { checkApiHealth } from '../../services/apiClient';
+import { holidayBackend } from '../../services/holidayService';
 import { 
   ShieldCheck, 
   TrendingUp, 
@@ -79,6 +81,25 @@ export const SuperAdminPanel: React.FC = () => {
   } = useApp();
 
   const [activeAdminTab, setActiveAdminTab] = useState<'analytics' | 'bookings' | 'markups' | 'visas' | 'holidays' | 'leads'>('analytics');
+  
+  // Real Express + MongoDB status
+  const [isDbConnected, setIsDbConnected] = useState<boolean | null>(null);
+  const [isSyncingDb, setIsSyncingDb] = useState(false);
+
+  useEffect(() => {
+    checkApiHealth().then(connected => setIsDbConnected(connected));
+  }, []);
+
+  const handleSyncWithDb = async () => {
+    setIsSyncingDb(true);
+    try {
+      await holidayBackend.syncFromBackend();
+      const connected = await checkApiHealth();
+      setIsDbConnected(connected);
+    } finally {
+      setIsSyncingDb(false);
+    }
+  };
   
   // Markups local state
   const [markupValues, setMarkupValues] = useState({
@@ -1232,6 +1253,35 @@ export const SuperAdminPanel: React.FC = () => {
                 <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
                   Configure wholesale-to-retail markups, group discounts, instant booking status, and customer service hotlines.
                 </p>
+              </div>
+
+              {/* Real DB Status & Sync */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  padding: '4px 10px',
+                  borderRadius: 'var(--radius-full)',
+                  background: isDbConnected ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+                  color: isDbConnected ? '#059669' : '#d97706',
+                  border: `1px solid ${isDbConnected ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: isDbConnected ? '#10b981' : '#f59e0b', display: 'inline-block' }} />
+                  {isDbConnected ? 'MongoDB + Express API Active' : 'Offline Cache Engine'}
+                </span>
+
+                <button
+                  type="button"
+                  className="btn btn-sm btn-secondary"
+                  style={{ fontSize: '0.78rem', padding: '4px 10px' }}
+                  onClick={handleSyncWithDb}
+                  disabled={isSyncingDb}
+                >
+                  {isSyncingDb ? 'Syncing...' : '🔄 Sync with MongoDB'}
+                </button>
               </div>
             </div>
 

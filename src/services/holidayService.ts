@@ -6,6 +6,7 @@ import {
   DayItinerary,
   ActivityOption
 } from '../types';
+import { packagesApi, bookingsApi, configApi } from './apiClient';
 
 // ======================== INITIAL SEED PACKAGES (Thomas Cook India Benchmark) ========================
 
@@ -745,6 +746,68 @@ class HolidayBackendService {
   private STORAGE_KEY_BOOKINGS = 'thomascook_holiday_bookings_db';
   private STORAGE_KEY_CONFIG = 'thomascook_holiday_admin_config_db';
 
+  constructor() {
+    this.syncFromBackend();
+  }
+
+  /**
+   * Syncs packages and config from Express + MongoDB backend
+   */
+  public async syncFromBackend(): Promise<void> {
+    try {
+      const res = await packagesApi.list({ limit: 50 });
+      if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
+        const mapped: HolidayPackage[] = res.data.map(p => ({
+          id: p._id || (p as any).id,
+          title: p.title,
+          destination: p.destination,
+          destinationType: p.destinationType,
+          region: p.region || '',
+          theme: (p.theme as any) || 'family',
+          category: (p.category as any) || 'Customized',
+          durationDays: p.durationDays,
+          durationNights: p.durationNights,
+          departureCities: p.departureCities || ['Mumbai', 'Delhi'],
+          basePrice: p.basePrice,
+          wholesaleCost: (p as any).wholesaleCost || Math.round(p.basePrice * 0.78),
+          heroImage: p.heroImage || 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=900&q=80',
+          galleryImages: p.galleryImages || [],
+          highlights: p.highlights || [],
+          inclusions: p.inclusions || [],
+          exclusions: p.exclusions || [],
+          hotelTiers: {
+            standard: p.hotelTiers?.standard || 'Standard Quality Accommodations',
+            deluxe: p.hotelTiers?.deluxe || 'Deluxe 4-Star Accommodations',
+            luxury: p.hotelTiers?.luxury || 'Luxury 5-Star Accommodations'
+          },
+          isBestSeller: p.isBestSeller || false,
+          isFeatured: p.isFeatured || false,
+          isTrending: p.isTrending || false,
+          discountPercent: p.discountPercent || 0,
+          cancellationPolicy: p.cancellationPolicy || 'Standard cancellation policy applies.',
+          days: (p.days as any) || []
+        }));
+        this.savePackages(mapped);
+      }
+    } catch {
+      // offline dev mode: local storage used
+    }
+
+    try {
+      const cfgRes = await configApi.getPublic();
+      if (cfgRes && cfgRes.success && cfgRes.data) {
+        const current = this.getAdminConfig();
+        const merged: AdminHolidayConfig = {
+          ...current,
+          ...cfgRes.data
+        };
+        this.saveAdminConfig(merged);
+      }
+    } catch {
+      // offline
+    }
+  }
+
   // 1. Packages CRUD
   public getPackages(): HolidayPackage[] {
     try {
@@ -773,6 +836,12 @@ class HolidayBackendService {
     const list = this.getPackages();
     const updated = list.map(p => p.id === id ? { ...p, ...updates } : p);
     this.savePackages(updated);
+
+    // Sync to Express MongoDB
+    packagesApi.patch(id, updates as any).catch(() => {
+      // offline fallback
+    });
+
     return updated;
   }
 
@@ -780,6 +849,12 @@ class HolidayBackendService {
     const list = this.getPackages();
     const updated = [newPkg, ...list];
     this.savePackages(updated);
+
+    // Sync to Express MongoDB
+    packagesApi.create(newPkg as any).catch(() => {
+      // offline fallback
+    });
+
     return updated;
   }
 
@@ -787,6 +862,12 @@ class HolidayBackendService {
     const list = this.getPackages();
     const updated = list.filter(p => p.id !== id);
     this.savePackages(updated);
+
+    // Sync to Express MongoDB
+    packagesApi.remove(id).catch(() => {
+      // offline fallback
+    });
+
     return updated;
   }
 
@@ -837,6 +918,22 @@ class HolidayBackendService {
     };
     const updated = [newRecord, ...bookings];
     this.saveBookings(updated);
+
+    // Sync to Express MongoDB
+    if (booking.packageId) {
+      bookingsApi.create({
+        packageId: booking.packageId,
+        customerPhone: booking.customerPhone || '+91 98765 43210',
+        travelDateFrom: booking.travelDate || new Date().toISOString(),
+        adults: booking.paxAdults || 2,
+        children: booking.paxChildren || 0,
+        departureCitySelected: booking.departureCity || 'Mumbai',
+        specialRequests: booking.customNotes
+      }).catch(() => {
+        // offline fallback
+      });
+    }
+
     return newRecord;
   }
 
@@ -857,6 +954,13 @@ class HolidayBackendService {
       return b;
     });
     this.saveBookings(updated);
+
+    // Sync to Express MongoDB
+    const target = list.find(b => b.bookingReference === bookingReference || b.id === bookingReference);
+    if (target) {
+      bookingsApi.updateStatus(target.id, status, note).catch(() => {});
+    }
+
     return updated;
   }
 
@@ -878,6 +982,9 @@ class HolidayBackendService {
     } catch (e) {
       // ignore
     }
+
+    // Sync to Express MongoDB
+    configApi.update(cfg as any).catch(() => {});
   }
 
   public calculatePackageSellingPrice(basePrice: number, partnerMarkupPercent: number): number {
