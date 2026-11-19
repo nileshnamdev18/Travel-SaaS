@@ -1,4 +1,4 @@
-﻿# TravelPulse - Start Backend + Frontend
+# TravelPulse - Start Backend + Frontend
 # Run: .\start-dev.ps1
 
 Write-Host "🚀 Starting TravelPulse Development Stack..." -ForegroundColor Cyan
