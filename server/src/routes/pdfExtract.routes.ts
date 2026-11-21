@@ -1,8 +1,39 @@
 import { Router, Response } from 'express';
 import multer from 'multer';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const pdfParse = require('pdf-parse');
 import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth.middleware';
+
+/**
+ * Universal PDF text extractor supporting both pdf-parse v1 (function) and v2 (PDFParse class)
+ */
+async function extractTextFromPdfBuffer(buffer: Buffer): Promise<string> {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const pdfModule = require('pdf-parse');
+
+  // 1. pdf-parse v1.x or default export function
+  if (typeof pdfModule === 'function') {
+    const data = await pdfModule(buffer);
+    return data?.text || '';
+  }
+  if (pdfModule && typeof pdfModule.default === 'function') {
+    const data = await pdfModule.default(buffer);
+    return data?.text || '';
+  }
+
+  // 2. pdf-parse v2.x (exposes PDFParse class)
+  if (pdfModule && typeof pdfModule.PDFParse === 'function') {
+    const parser = new pdfModule.PDFParse({ data: buffer });
+    try {
+      const data = await parser.getText();
+      return data?.text || '';
+    } finally {
+      if (typeof parser.destroy === 'function') {
+        await parser.destroy();
+      }
+    }
+  }
+
+  throw new Error('No compatible PDF parser found in pdf-parse module');
+}
 
 const router = Router();
 const upload = multer({
@@ -122,8 +153,7 @@ router.post(
         return;
       }
 
-      const pdfData = await pdfParse(req.file.buffer);
-      const rawText = pdfData.text || '';
+      const rawText = await extractTextFromPdfBuffer(req.file.buffer);
 
       if (!rawText.trim()) {
         res.status(400).json({
