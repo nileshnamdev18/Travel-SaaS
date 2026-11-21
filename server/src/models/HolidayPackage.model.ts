@@ -79,6 +79,7 @@ export interface IHolidayPackage extends Document {
   isFeatured: boolean;
   isTrending: boolean;
   isActive: boolean;
+  slug?: string;
   rating: number;
   reviewCount: number;
   discountPercent: number;
@@ -94,6 +95,7 @@ export interface IHolidayPackage extends Document {
 const HolidayPackageSchema = new Schema<IHolidayPackage>(
   {
     title: { type: String, required: true, trim: true },
+    slug: { type: String, trim: true, sparse: true, index: true },
     destination: { type: String, required: true, trim: true },
     destinationType: { type: String, enum: ['domestic', 'international'], required: true },
     region: { type: String, default: '' },

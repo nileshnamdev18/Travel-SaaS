@@ -779,7 +779,8 @@ class HolidayBackendService {
   /**
    * Syncs packages and config from Express + MongoDB backend
    */
-  public async syncFromBackend(): Promise<void> {
+  public async syncFromBackend(): Promise<{ packages: HolidayPackage[]; config: AdminHolidayConfig }> {
+    let syncedPackages = this.getPackages();
     try {
       const res = await packagesApi.list({ limit: 50 });
       if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
@@ -816,11 +817,13 @@ class HolidayBackendService {
           days: (p.days as any) || []
         }));
         this.savePackages(mapped);
+        syncedPackages = mapped;
       }
     } catch {
       // offline dev mode: local storage used
     }
 
+    let syncedConfig = this.getAdminConfig();
     try {
       const cfgRes = await configApi.getPublic();
       if (cfgRes && cfgRes.success && cfgRes.data) {
@@ -838,10 +841,13 @@ class HolidayBackendService {
           featuredDestinations: normalizedFeatured
         };
         this.saveAdminConfig(merged);
+        syncedConfig = merged;
       }
     } catch {
       // offline
     }
+
+    return { packages: syncedPackages, config: syncedConfig };
   }
 
   // 1. Packages CRUD
@@ -874,8 +880,12 @@ class HolidayBackendService {
     this.savePackages(updated);
 
     // Sync to Express MongoDB
-    packagesApi.patch(id, updates as any).catch(() => {
-      // offline fallback
+    packagesApi.patch(id, updates as any).then((res) => {
+      if (res && res.success && res.data) {
+        // Backend updated successfully
+      }
+    }).catch((err) => {
+      console.warn(`Backend package patch (${id}) failed:`, err);
     });
 
     return updated;
@@ -887,8 +897,19 @@ class HolidayBackendService {
     this.savePackages(updated);
 
     // Sync to Express MongoDB
-    packagesApi.create(newPkg as any).catch(() => {
-      // offline fallback
+    packagesApi.create({
+      ...newPkg,
+      slug: newPkg.id
+    } as any).then((res) => {
+      if (res && res.success && res.data && res.data._id) {
+        const currentList = this.getPackages();
+        const updatedWithBackendId = currentList.map(p =>
+          p.id === newPkg.id ? { ...p, id: res.data._id } : p
+        );
+        this.savePackages(updatedWithBackendId);
+      }
+    }).catch((err) => {
+      console.warn('Backend package creation sync failed, saved locally:', err);
     });
 
     return updated;
@@ -900,8 +921,8 @@ class HolidayBackendService {
     this.savePackages(updated);
 
     // Sync to Express MongoDB
-    packagesApi.remove(id).catch(() => {
-      // offline fallback
+    packagesApi.remove(id).catch((err) => {
+      console.warn(`Backend package delete (${id}) failed:`, err);
     });
 
     return updated;

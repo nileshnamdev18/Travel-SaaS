@@ -1,9 +1,37 @@
 import { Router, Request, Response } from 'express';
+import mongoose from 'mongoose';
 import { body, query, validationResult } from 'express-validator';
 import { HolidayPackage } from '../models/HolidayPackage.model';
 import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth.middleware';
 
 const router = Router();
+
+/**
+ * Escape special regex characters in a string
+ */
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Builds a query that safely matches by ObjectId (if valid 24-char hex)
+ * OR by slug OR by title slug pattern (e.g. holiday-package-master-d)
+ */
+function buildPackageQuery(idOrSlug: string, onlyActive = false): Record<string, unknown> {
+  const base: Record<string, unknown> = onlyActive ? { isActive: true } : {};
+  if (mongoose.Types.ObjectId.isValid(idOrSlug) && idOrSlug.length === 24) {
+    return { ...base, _id: idOrSlug };
+  }
+  const clean = escapeRegex(idOrSlug).replace(/-/g, '[-\\s]');
+  const titleRegex = new RegExp(`^${clean}`, 'i');
+  return {
+    ...base,
+    $or: [
+      { slug: idOrSlug },
+      { title: titleRegex }
+    ]
+  };
+}
 
 // ─── GET /api/packages ─────────────────────────────────────────────────────────
 // Public — customer facing listing with filters & search
@@ -86,7 +114,7 @@ router.get('/featured', async (_req: Request, res: Response): Promise<void> => {
 // ─── GET /api/packages/:id ────────────────────────────────────────────────────
 router.get('/:id', async (req: Request, res: Response): Promise<void> => {
   try {
-    const pkg = await HolidayPackage.findOne({ _id: req.params.id, isActive: true })
+    const pkg = await HolidayPackage.findOne(buildPackageQuery(req.params.id, true))
       .select('-wholesaleCost -__v')
       .lean();
     if (!pkg) { res.status(404).json({ success: false, message: 'Package not found' }); return; }
@@ -117,8 +145,10 @@ router.post(
       return;
     }
     try {
+      const slug = req.body.slug || req.body.id || (req.body.title ? req.body.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40) : undefined);
       const pkg = await HolidayPackage.create({
         ...req.body,
+        slug,
         createdBy: req.user!._id
       });
       res.status(201).json({ success: true, message: 'Package created', data: pkg });
@@ -136,15 +166,20 @@ router.put(
   requireAdmin,
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const pkg = await HolidayPackage.findByIdAndUpdate(
-        req.params.id,
-        { ...req.body, updatedBy: req.user!._id },
+      const updateData = { ...req.body };
+      delete updateData._id;
+      delete updateData.id;
+
+      const pkg = await HolidayPackage.findOneAndUpdate(
+        buildPackageQuery(req.params.id),
+        { ...updateData, updatedBy: req.user!._id },
         { new: true, runValidators: true }
       );
       if (!pkg) { res.status(404).json({ success: false, message: 'Package not found' }); return; }
       res.json({ success: true, message: 'Package updated', data: pkg });
-    } catch (err) {
-      res.status(500).json({ success: false, message: 'Error updating package' });
+    } catch (err: any) {
+      console.error('Error updating package:', err);
+      res.status(500).json({ success: false, message: err?.message || 'Error updating package' });
     }
   }
 );
@@ -157,15 +192,20 @@ router.patch(
   requireAdmin,
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const pkg = await HolidayPackage.findByIdAndUpdate(
-        req.params.id,
-        { $set: { ...req.body, updatedBy: req.user!._id } },
+      const updateData = { ...req.body };
+      delete updateData._id;
+      delete updateData.id;
+
+      const pkg = await HolidayPackage.findOneAndUpdate(
+        buildPackageQuery(req.params.id),
+        { $set: { ...updateData, updatedBy: req.user!._id } },
         { new: true }
       );
       if (!pkg) { res.status(404).json({ success: false, message: 'Package not found' }); return; }
       res.json({ success: true, message: 'Package patched', data: pkg });
-    } catch {
-      res.status(500).json({ success: false, message: 'Error patching package' });
+    } catch (err: any) {
+      console.error('Error patching package:', err);
+      res.status(500).json({ success: false, message: err?.message || 'Error patching package' });
     }
   }
 );
@@ -178,15 +218,16 @@ router.delete(
   requireAdmin,
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const pkg = await HolidayPackage.findByIdAndUpdate(
-        req.params.id,
+      const pkg = await HolidayPackage.findOneAndUpdate(
+        buildPackageQuery(req.params.id),
         { isActive: false, updatedBy: req.user!._id },
         { new: true }
       );
       if (!pkg) { res.status(404).json({ success: false, message: 'Package not found' }); return; }
       res.json({ success: true, message: 'Package deactivated (soft deleted)' });
-    } catch {
-      res.status(500).json({ success: false, message: 'Error deleting package' });
+    } catch (err: any) {
+      console.error('Error deleting package:', err);
+      res.status(500).json({ success: false, message: err?.message || 'Error deleting package' });
     }
   }
 );

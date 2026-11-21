@@ -363,6 +363,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [holidayBookings, setHolidayBookings] = useState<HolidayBookingRecord[]>(() => holidayBackend.getBookings());
   const [adminHolidayConfig, setAdminHolidayConfig] = useState<AdminHolidayConfig>(() => holidayBackend.getAdminConfig());
 
+  // Sync Thomas Cook Holidays from Express MongoDB Backend on mount
+  useEffect(() => {
+    let isMounted = true;
+    holidayBackend.syncFromBackend().then(({ packages, config }) => {
+      if (isMounted) {
+        setHolidayPackages(packages);
+        setAdminHolidayConfig(config);
+      }
+    }).catch(() => {
+      // Offline fallback: already loaded from localStorage
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const updateHolidayPackage = (id: string, updates: Partial<HolidayPackage>) => {
     const updated = holidayBackend.updatePackage(id, updates);
     setHolidayPackages(updated);
