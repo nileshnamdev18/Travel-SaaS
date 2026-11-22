@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
-import { checkApiHealth, packagesApi } from '../../services/apiClient';
+import { checkApiHealth, packagesApi, adminApi, bookingsApi } from '../../services/apiClient';
 import { holidayBackend } from '../../services/holidayService';
 import { 
   ShieldCheck, 
@@ -49,8 +49,6 @@ import {
   VisaApplicationStatus, 
   VisaCategory,
   HolidayPackage,
-  HolidayBookingRecord,
-  AdminHolidayConfig,
   HolidayBookingStatus,
   HolidayDestinationType
 } from '../../types';
@@ -77,7 +75,7 @@ export const SuperAdminPanel: React.FC = () => {
     updateVisaApplicationStatus,
     adminVisaConfig,
     updateAdminVisaConfig,
-    // Thomas Cook Holiday Engine
+    // TravelPulse Holiday Engine
     holidayPackages,
     updateHolidayPackage,
     addHolidayPackage,
@@ -93,6 +91,7 @@ export const SuperAdminPanel: React.FC = () => {
   // Real Express + MongoDB status
   const [isDbConnected, setIsDbConnected] = useState<boolean | null>(null);
   const [isSyncingDb, setIsSyncingDb] = useState(false);
+  const [adminHolidayBookings, setAdminHolidayBookings] = useState<any[] | null>(null);
 
   useEffect(() => {
     checkApiHealth().then(connected => setIsDbConnected(connected));
@@ -104,10 +103,19 @@ export const SuperAdminPanel: React.FC = () => {
       await holidayBackend.syncFromBackend();
       const connected = await checkApiHealth();
       setIsDbConnected(connected);
+      if (connected) {
+        try { const r = await adminApi.allBookings({ limit: 100 }); setAdminHolidayBookings(r.data || []); } catch {}
+      }
     } finally {
       setIsSyncingDb(false);
     }
   };
+
+  useEffect(() => {
+    if (isDbConnected) {
+      adminApi.allBookings({ limit: 100 }).then(r => setAdminHolidayBookings(r.data || [])).catch(() => {});
+    }
+  }, [isDbConnected]);
   
   // Markups local state
   const [markupValues, setMarkupValues] = useState({
@@ -257,7 +265,7 @@ export const SuperAdminPanel: React.FC = () => {
   // Marketing Attribution Campaigns Data
   const attributionCampaigns = [
     { source: 'Google Ads Search', campaign: 'akbar_flights_dubai_2026', spend: 8400, leads: 92, converted: 34, gbv: 166600, netProfit: 21400, cac: 247 },
-    { source: 'Meta Reels / Ads', campaign: 'thomascook_kashmir_tour', spend: 4200, leads: 110, converted: 26, gbv: 50700, netProfit: 7800, cac: 161 },
+    { source: 'Meta Reels / Ads', campaign: 'TravelPulse_kashmir_tour', spend: 4200, leads: 110, converted: 26, gbv: 50700, netProfit: 7800, cac: 161 },
     { source: 'Instagram Stories', campaign: 'atlys_instant_evisa_promo', spend: 2800, leads: 145, converted: 48, gbv: 38880, netProfit: 5400, cac: 58 },
     { source: 'Direct Organic SEO', campaign: 'akbar_hotels_best_rates', spend: 0, leads: 44, converted: 19, gbv: 82000, netProfit: 14200, cac: 0 },
   ];
@@ -596,7 +604,32 @@ export const SuperAdminPanel: React.FC = () => {
     return app.status === visaAppStatusFilter;
   });
 
-  const filteredHolidayBookings = holidayBookings.filter(b => {
+  const mapApiBooking = (b: any) => ({
+    id: b._id || b.id,
+    bookingReference: b.bookingRef || b.bookingReference,
+    packageId: typeof b.packageId === 'object' ? (b.packageId?._id || b.packageId?.id) : b.packageId,
+    packageTitle: b.packageTitle,
+    destination: b.packageDestination || b.destination,
+    destinationType: b.destinationType || 'domestic',
+    customerName: b.customerName,
+    customerEmail: b.customerEmail,
+    customerPhone: b.customerPhone,
+    departureCity: b.departureCitySelected || b.departureCity,
+    travelDate: b.travelDateFrom ? new Date(b.travelDateFrom).toISOString().split('T')[0] : b.travelDate,
+    paxAdults: b.adults ?? b.paxAdults ?? 2,
+    paxChildren: b.children ?? b.paxChildren ?? 0,
+    selectedHotelTier: (b.hotelTierSelected === 'standard' ? 'Comfort' : b.hotelTierSelected === 'luxury' ? 'Luxury 5-Star' : 'Superior') as any,
+    totalAmountUSD: b.totalAmountUSD,
+    wholesaleCostUSD: Math.round((b.basePricePerPerson || 0) * ((b.adults || 0) + (b.children || 0) * 0.5)),
+    markupAmountUSD: Math.round(b.totalAmountUSD - (b.basePricePerPerson || 0) * ((b.adults || 0) + (b.children || 0) * 0.5)),
+    status: b.status,
+    customNotes: b.specialRequests || b.adminNotes,
+    createdAt: b.createdAt
+  });
+
+  const sourceHolidayBookings = adminHolidayBookings ? adminHolidayBookings.map(mapApiBooking) : holidayBookings;
+
+  const filteredHolidayBookings = sourceHolidayBookings.filter(b => {
     if (holidayBookingStatusFilter === 'all') return true;
     return b.status === holidayBookingStatusFilter;
   });
@@ -625,7 +658,7 @@ export const SuperAdminPanel: React.FC = () => {
               Platform Super Admin Hub
             </h1>
             <p style={{ fontSize: '0.95rem', color: '#c7d2fe', marginTop: '6px', maxWidth: '650px', lineHeight: 1.5 }}>
-              Manage platform gross booking value, customer reservations across Akbar Travels, Atlys & Thomas Cook, adjust partner markups, and configure holiday & visa engines.
+              Manage platform gross booking value, customer reservations across Akbar Travels, Atlys & TravelPulse, adjust partner markups, and configure holiday & visa engines.
             </p>
           </div>
 
@@ -677,7 +710,7 @@ export const SuperAdminPanel: React.FC = () => {
             style={activeAdminTab === 'holidays' ? { background: '#d97706', borderColor: '#d97706', color: '#fff' } : {}}
             onClick={() => setActiveAdminTab('holidays')}
           >
-            <Palmtree size={15} /> 🏖️ Thomas Cook Holidays ({holidayBookings.length})
+            <Palmtree size={15} /> 🏖️ TravelPulse Holidays ({holidayBookings.length})
           </button>
 
           <button 
@@ -776,7 +809,7 @@ export const SuperAdminPanel: React.FC = () => {
                 Live Customer Bookings
               </h3>
               <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
-                Real reservations created via Akbar Travels (Flights/Hotels), Thomas Cook (Holidays), and Atlys (Visas).
+                Real reservations created via Akbar Travels (Flights/Hotels), TravelPulse (Holidays), and Atlys (Visas).
               </p>
             </div>
           </div>
@@ -865,7 +898,7 @@ export const SuperAdminPanel: React.FC = () => {
               Partner Dynamic Markups & Pricing Engine
             </h3>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
-              Adjust live consumer pricing by setting fee markups on top of Akbar Travels, Atlys and Thomas Cook wholesale rates.
+              Adjust live consumer pricing by setting fee markups on top of Akbar Travels, Atlys and TravelPulse wholesale rates.
             </p>
           </div>
 
@@ -917,7 +950,7 @@ export const SuperAdminPanel: React.FC = () => {
 
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>Thomas Cook Holidays Commission (%)</span>
+                <span>TravelPulse Holidays Commission (%)</span>
                 <strong style={{ color: '#d97706' }}>+{markupValues.holidaysPercent}%</strong>
               </label>
               <input 
@@ -1478,7 +1511,7 @@ export const SuperAdminPanel: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 5: Thomas Cook Holiday Operations & Catalog */}
+      {/* TAB 5: TravelPulse Holiday Operations & Catalog */}
       {activeAdminTab === 'holidays' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           
@@ -1487,7 +1520,7 @@ export const SuperAdminPanel: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
               <div>
                 <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#d97706', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Palmtree size={20} /> Thomas Cook Holiday Engine Settings & Wholesale Margins
+                  <Palmtree size={20} /> TravelPulse Holiday Engine Settings & Wholesale Margins
                 </h3>
                 <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
                   Configure wholesale-to-retail markups, group discounts, instant booking status, and customer service hotlines.
@@ -1552,7 +1585,7 @@ export const SuperAdminPanel: React.FC = () => {
               </div>
 
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Thomas Cook Helpline</label>
+                <label className="form-label">TravelPulse Helpline</label>
                 <input 
                   type="text" 
                   className="form-input"
@@ -1583,7 +1616,7 @@ export const SuperAdminPanel: React.FC = () => {
                   />
                   <span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>Dedicated Tour Manager Included</span>
                 </label>
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Displays Thomas Cook Tour Manager badge across packages</div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Displays TravelPulse Tour Manager badge across packages</div>
               </div>
 
               <div className="form-group" style={{ marginBottom: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
@@ -1736,7 +1769,7 @@ export const SuperAdminPanel: React.FC = () => {
                 </button>
                 {savedHolidayEngineSuccess && (
                   <span style={{ color: '#10b981', fontWeight: 700, fontSize: '0.85rem' }}>
-                    ✓ Configuration saved! Reflected live on Thomas Cook Holiday Desk.
+                    ✓ Configuration saved! Reflected live on TravelPulse Holiday Desk.
                   </span>
                 )}
               </div>
@@ -1748,16 +1781,16 @@ export const SuperAdminPanel: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
               <div>
                 <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-heading)', margin: 0 }}>
-                  Holiday Bookings & Customized Inquiries ({holidayBookings.length})
+                  Holiday Bookings & Customized Inquiries ({sourceHolidayBookings.length})
                 </h3>
                 <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
-                  Manage reservations, review passenger details, and advance status through the Thomas Cook booking pipeline.
+                  Manage reservations, review passenger details, and advance status through the TravelPulse booking pipeline.
                 </p>
               </div>
 
               {/* Status Filter */}
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {['all', 'inquiry_received', 'customizing', 'quote_sent', 'confirmed', 'cancelled'].map(st => (
+                {['all', 'inquiry_received', 'customizing', 'quote_sent', 'confirmed', 'completed', 'cancelled'].map(st => (
                   <button
                     key={st}
                     className={`btn btn-sm ${holidayBookingStatusFilter === st ? 'btn-primary' : 'btn-secondary'}`}
@@ -1823,7 +1856,17 @@ export const SuperAdminPanel: React.FC = () => {
                       <td style={{ padding: '12px 14px' }}>
                         <select
                           value={b.status}
-                          onChange={e => updateHolidayBookingStatus(b.bookingReference, e.target.value as HolidayBookingStatus, 'Status updated by Super Admin')}
+                          onChange={e => {
+                            const newStatus = e.target.value as HolidayBookingStatus;
+                            const isMongo = /^[a-f0-9]{24}$/i.test(String(b.id));
+                            if (isMongo) {
+                              bookingsApi.updateStatus(b.id, newStatus, 'Status updated by Super Admin').then(() => {
+                                adminApi.allBookings({ limit: 100 }).then(r => setAdminHolidayBookings(r.data || [])).catch(() => {});
+                              }).catch(() => {});
+                            } else {
+                              updateHolidayBookingStatus(b.bookingReference, newStatus, 'Status updated by Super Admin');
+                            }
+                          }}
                           style={{
                             padding: '4px 8px',
                             borderRadius: '4px',
@@ -1838,6 +1881,7 @@ export const SuperAdminPanel: React.FC = () => {
                           <option value="customizing">Customizing Plan</option>
                           <option value="quote_sent">Quote Sent</option>
                           <option value="confirmed">Confirmed & Paid</option>
+                          <option value="completed">Completed (Trip Done)</option>
                           <option value="cancelled">Cancelled</option>
                         </select>
                       </td>
@@ -1925,7 +1969,7 @@ export const SuperAdminPanel: React.FC = () => {
                 <tbody>
                   {holidayPackages.map(pkg => {
                     const isEditing = editingHolidayId === pkg.id;
-                    const sellingPrice = Math.round(pkg.basePrice * (1 + adminHolidayConfig.partnerMarkupPercent / 100));
+                    const sellingPrice = (pkg as any).sellingPrice || Math.round(pkg.basePrice * (1 + adminHolidayConfig.partnerMarkupPercent / 100) * (1 - ((pkg as any).discountPercent || 0) / 100));
 
                     return (
                       <tr key={pkg.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
@@ -2511,6 +2555,21 @@ export const SuperAdminPanel: React.FC = () => {
                           onChange={e => setNewHolidayForm({ ...newHolidayForm, heroImage: e.target.value })}
                           placeholder="https://images.unsplash.com/..."
                         />
+                        <div style={{ marginTop: 6 }}>
+                          <label className="btn btn-sm btn-secondary" style={{ cursor: 'pointer', display: 'inline-block', fontSize: '0.75rem' }}>
+                            📤 Upload Image
+                            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => {
+                              const f = e.target.files?.[0];
+                              if (!f) return;
+                              try {
+                                const res = await packagesApi.uploadImage(f);
+                                if (res.success && res.data?.url) {
+                                  setNewHolidayForm(prev => ({ ...prev, heroImage: res.data.url }));
+                                }
+                              } catch (err: any) { alert(err?.message || 'Upload failed'); }
+                            }} />
+                          </label>
+                        </div>
                       </div>
 
                       {newHolidayForm.heroImage && (

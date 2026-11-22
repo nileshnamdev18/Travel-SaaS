@@ -31,7 +31,7 @@ export const B2CPortal: React.FC = () => {
     { id: 'flights', label: 'Flights', icon: <Plane size={18} />, tag: 'Akbar Travels', tagColor: '#c0392b' },
     { id: 'hotels', label: 'Hotels', icon: <Building size={18} />, tag: 'Akbar Travels' },
     { id: 'visa', label: 'e-Visa & OCR', icon: <FileText size={18} />, tag: 'Atlys Partner', tagColor: '#7c3aed' },
-    { id: 'holidays', label: 'Holiday Packages', icon: <Palmtree size={18} />, tag: 'Thomas Cook', tagColor: '#d97706' },
+    { id: 'holidays', label: 'Holiday Packages', icon: <Palmtree size={18} />, tag: 'TravelPulse', tagColor: '#d97706' },
     { id: 'chatbot', label: 'Get Quote', icon: <MessageSquare size={18} />, tag: 'WhatsApp', tagColor: '#25D366' },
     { id: 'custom_trip', label: 'Customize Trip', icon: <Sparkles size={18} />, tag: 'AI Agent', tagColor: '#7c3aed' },
   ];

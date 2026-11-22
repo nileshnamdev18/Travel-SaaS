@@ -227,13 +227,13 @@ export interface AdminVisaConfig {
   whatsappSupportNumber: string;
 }
 
-// ======================== HOLIDAYS TYPES (Thomas Cook Benchmark) ========================
+// ======================== HOLIDAYS TYPES (TravelPulse Benchmark) ========================
 export type HolidayDestinationType = 'domestic' | 'international';
 export type HolidayTheme = 'all' | 'honeymoon' | 'family' | 'adventure' | 'luxury' | 'group_tour' | 'wildlife';
-export type HolidayBookingStatus = 'inquiry_received' | 'customizing' | 'quote_sent' | 'confirmed' | 'cancelled';
+export type HolidayBookingStatus = 'inquiry_received' | 'customizing' | 'quote_sent' | 'confirmed' | 'cancelled' | 'completed';
 
 export interface ActivityOption {
-  id: string;
+  id?: string;
   title: string;
   duration: string;
   priceDelta: number;
@@ -244,7 +244,7 @@ export interface ActivityOption {
 export interface DayItinerary {
   dayNumber: number;
   dayTitle: string;
-  destination: string;
+  destination?: string;
   currentActivity: ActivityOption;
   alternativeActivities: ActivityOption[];
   hotelName: string;
@@ -265,6 +265,7 @@ export interface HolidayPackage {
   departureCities?: string[];
   basePrice: number;
   wholesaleCost: number;
+  sellingPrice?: number;
   heroImage: string;
   galleryImages?: string[];
   highlights: string[];
@@ -301,6 +302,7 @@ export interface HolidayBookingRecord {
   markupAmountUSD: number;
   status: HolidayBookingStatus;
   customNotes?: string;
+  activitySwaps?: Array<{ dayNumber: number; chosenActivityId: string; chosenActivityTitle: string; priceDelta: number }>;
   createdAt: string;
 }
 

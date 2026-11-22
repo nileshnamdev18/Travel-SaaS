@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { body, query, validationResult } from 'express-validator';
 import { HolidayPackage } from '../models/HolidayPackage.model';
+import { AdminConfig } from '../models/AdminConfig.model';
 import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth.middleware';
 
 const router = Router();
@@ -31,6 +32,22 @@ function buildPackageQuery(idOrSlug: string, onlyActive = false): Record<string,
       { title: titleRegex }
     ]
   };
+}
+
+async function getMarkupPercent(): Promise<number> {
+  try {
+    const cfg = await AdminConfig.findOne({ key: 'holiday_global_config' }).lean();
+    return cfg?.partnerMarkupPercent ?? 15;
+  } catch {
+    return 15;
+  }
+}
+
+function withSellingPrice(pkg: any, markupPct: number): any {
+  const base = pkg.basePrice || 0;
+  const discount = pkg.discountPercent || 0;
+  const selling = Math.round(base * (1 + markupPct / 100) * (1 - discount / 100));
+  return { ...pkg, sellingPrice: selling, partnerMarkupPercent: undefined };
 }
 
 // ─── GET /api/packages ─────────────────────────────────────────────────────────
@@ -72,6 +89,7 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
     const limitNum = Math.min(50, Math.max(1, parseInt(limit)));
     const skip = (pageNum - 1) * limitNum;
 
+    const markupPct = await getMarkupPercent();
     const [packages, total] = await Promise.all([
       HolidayPackage.find(filter)
         .sort(sortOpts as any)
@@ -84,7 +102,7 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
 
     res.json({
       success: true,
-      data: packages,
+      data: packages.map(p => withSellingPrice(p, markupPct)),
       pagination: {
         total,
         page: pageNum,
@@ -100,25 +118,39 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
 // ─── GET /api/packages/featured ───────────────────────────────────────────────
 router.get('/featured', async (_req: Request, res: Response): Promise<void> => {
   try {
+    const markupPct = await getMarkupPercent();
     const featured = await HolidayPackage.find({ isActive: true, isFeatured: true })
       .sort({ sortOrder: 1 })
       .limit(6)
       .select('-wholesaleCost -__v')
       .lean();
-    res.json({ success: true, data: featured });
+    res.json({ success: true, data: featured.map(p => withSellingPrice(p, markupPct)) });
   } catch {
     res.status(500).json({ success: false, message: 'Error fetching featured packages' });
+  }
+});
+
+// ─── GET /api/packages/:id/departures ────────────────────────────────────────
+router.get('/:id/departures', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const pkg: any = await HolidayPackage.findOne(buildPackageQuery(req.params.id, true)).select('departures').lean();
+    if (!pkg) { res.status(404).json({ success: false, message: 'Package not found' }); return; }
+    const deps = (pkg.departures || []).map((d: any) => ({ ...d, seatsLeft: Math.max(0, (d.seatsTotal || 0) - (d.seatsBooked || 0)) }));
+    res.json({ success: true, data: deps });
+  } catch {
+    res.status(500).json({ success: false, message: 'Error fetching departures' });
   }
 });
 
 // ─── GET /api/packages/:id ────────────────────────────────────────────────────
 router.get('/:id', async (req: Request, res: Response): Promise<void> => {
   try {
+    const markupPct = await getMarkupPercent();
     const pkg = await HolidayPackage.findOne(buildPackageQuery(req.params.id, true))
       .select('-wholesaleCost -__v')
       .lean();
     if (!pkg) { res.status(404).json({ success: false, message: 'Package not found' }); return; }
-    res.json({ success: true, data: pkg });
+    res.json({ success: true, data: withSellingPrice(pkg, markupPct) });
   } catch {
     res.status(500).json({ success: false, message: 'Error fetching package' });
   }

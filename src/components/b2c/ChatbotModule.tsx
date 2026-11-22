@@ -457,7 +457,7 @@ export const ChatbotModule: React.FC = () => {
                   <option value="Flights Only">Flights Only (Akbar Travels)</option>
                   <option value="Hotels Only">Hotels Only</option>
                   <option value="Visa Only (Atlys)">Visa Only (Atlys e-Visa/Sticker)</option>
-                  <option value="Holiday Package (Thomas Cook)">Holiday Package (Thomas Cook)</option>
+                  <option value="Holiday Package (TravelPulse)">Holiday Package (TravelPulse)</option>
                   <option value="All-Inclusive Customized Tour">All-Inclusive Customized Tour</option>
                 </select>
               </div>

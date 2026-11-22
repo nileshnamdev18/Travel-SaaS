@@ -14,7 +14,7 @@ export interface IHolidayBooking extends Document {
   packageId: mongoose.Types.ObjectId;
   packageTitle: string;
   packageDestination: string;
-  customerId: mongoose.Types.ObjectId;
+  customerId?: mongoose.Types.ObjectId;
   customerName: string;
   customerEmail: string;
   customerPhone: string;
@@ -29,6 +29,7 @@ export interface IHolidayBooking extends Document {
   markup: number;              // admin configurable markup %
   discountPercent: number;
   totalAmountUSD: number;
+  paymentStatus: 'unpaid' | 'pending' | 'paid' | 'refunded';
   status: BookingStatus;
   activitySwaps: Array<{
     dayNumber: number;
@@ -49,7 +50,7 @@ const HolidayBookingSchema = new Schema<IHolidayBooking>(
     packageId: { type: Schema.Types.ObjectId, ref: 'HolidayPackage', required: true },
     packageTitle: { type: String, required: true },
     packageDestination: { type: String, required: true },
-    customerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    customerId: { type: Schema.Types.ObjectId, ref: 'User' },
     customerName: { type: String, required: true },
     customerEmail: { type: String, required: true },
     customerPhone: { type: String, required: true },
@@ -64,6 +65,7 @@ const HolidayBookingSchema = new Schema<IHolidayBooking>(
     markup: { type: Number, default: 0 },
     discountPercent: { type: Number, default: 0 },
     totalAmountUSD: { type: Number, required: true },
+    paymentStatus: { type: String, enum: ['unpaid', 'pending', 'paid', 'refunded'], default: 'unpaid' },
     status: {
       type: String,
       enum: ['inquiry_received', 'customizing', 'quote_sent', 'confirmed', 'cancelled', 'completed'],
