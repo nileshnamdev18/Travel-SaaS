@@ -8,11 +8,11 @@ const app = createApp();
 beforeAll(async () => {
   const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/travelpulse';
   await mongoose.connect(uri);
-});
+}, 30000);
 
 afterAll(async () => {
   await mongoose.disconnect();
-});
+}, 30000);
 
 describe('Health', () => {
   it('GET /api/health returns ok', async () => {
