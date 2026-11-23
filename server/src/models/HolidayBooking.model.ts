@@ -90,6 +90,5 @@ const HolidayBookingSchema = new Schema<IHolidayBooking>(
 HolidayBookingSchema.index({ customerId: 1 });
 HolidayBookingSchema.index({ packageId: 1 });
 HolidayBookingSchema.index({ status: 1 });
-HolidayBookingSchema.index({ bookingRef: 1 });
 
 export const HolidayBooking = mongoose.model<IHolidayBooking>('HolidayBooking', HolidayBookingSchema);
