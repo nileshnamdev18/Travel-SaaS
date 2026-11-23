@@ -85,6 +85,7 @@ export interface IHolidayPackage extends Document {
   discountPercent: number;
   cancellationPolicy: string;
   tags: string[];
+  departures: Array<{ date: Date; seatsTotal: number; seatsBooked: number; priceOverride?: number }>;
   sortOrder: number;
   createdBy?: mongoose.Types.ObjectId;
   updatedBy?: mongoose.Types.ObjectId;
@@ -122,6 +123,12 @@ const HolidayPackageSchema = new Schema<IHolidayPackage>(
     discountPercent: { type: Number, default: 0, min: 0, max: 100 },
     cancellationPolicy: { type: String, default: 'Non-refundable after booking.' },
     tags: [String],
+    departures: [{
+      date: { type: Date, required: true },
+      seatsTotal: { type: Number, default: 20, min: 0 },
+      seatsBooked: { type: Number, default: 0, min: 0 },
+      priceOverride: { type: Number }
+    }],
     sortOrder: { type: Number, default: 0 },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' }

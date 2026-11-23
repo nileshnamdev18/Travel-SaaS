@@ -35,8 +35,12 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import jsPDF from 'jspdf';
+import { packagesApi, bookingsApi, paymentsApi } from '../../services/apiClient';
+import { holidayBackend } from '../../services/holidayService';
+import { useToast } from '../Toast';
 
 export const HolidaysModule: React.FC = () => {
+  const toast = useToast();
   const {
     formatPrice,
     holidayPackages,
@@ -84,6 +88,17 @@ export const HolidaysModule: React.FC = () => {
   const [pdpActiveTab, setPdpActiveTab] = useState<'itinerary' | 'inclusions' | 'summary' | 'highlights'>('itinerary');
   const [pdpActiveDay, setPdpActiveDay] = useState<number>(1);
   const [swappingDay, setSwappingDay] = useState<number | null>(null);
+  const [activitySwaps, setActivitySwaps] = useState<Array<{ dayNumber: number; chosenActivityId: string; chosenActivityTitle: string; priceDelta: number }>>([]);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [serverSearchResults, setServerSearchResults] = useState<HolidayPackage[] | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState(false);
+  const [catalogPage, setCatalogPage] = useState(1);
+  const PAGE_SIZE = 9;
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [departures, setDepartures] = useState<any[]>([]);
+  const [selectedDepartureIdx, setSelectedDepartureIdx] = useState<number>(-1);
 
   // PDP Slide-Over Booking Calculator Drawer
   const [isCalculatorDrawerOpen, setIsCalculatorDrawerOpen] = useState(false);
@@ -95,6 +110,9 @@ export const HolidaysModule: React.FC = () => {
   });
   const [drawerAdults, setDrawerAdults] = useState(2);
   const [drawerChildren, setDrawerChildren] = useState(0);
+  const [drawerCustomerName, setDrawerCustomerName] = useState('');
+  const [drawerCustomerEmail, setDrawerCustomerEmail] = useState('');
+  const [drawerCustomerPhone, setDrawerCustomerPhone] = useState('');
   const [drawerHotelTier, setDrawerHotelTier] = useState<'Comfort' | 'Superior' | 'Luxury 5-Star'>('Superior');
 
   // PDP "Want us to call you?" Quick Lead State
@@ -105,6 +123,56 @@ export const HolidaysModule: React.FC = () => {
 
   // Booking Confirmation State
   const [bookingSuccessRef, setBookingSuccessRef] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) { setServerSearchResults(null); return; }
+    const t = setTimeout(() => {
+      const params: any = { search: searchQuery.trim(), limit: 50 };
+      if (destTypeFilter !== 'all') params.destinationType = destTypeFilter;
+      if (themeFilter !== 'all') params.theme = themeFilter;
+      packagesApi.list(params).then(res => {
+        if (res.success) {
+          const mapped = (res.data || []).map((p: any) => ({ ...p, id: p._id || p.id, sellingPrice: p.sellingPrice }));
+          setServerSearchResults(mapped as any);
+        }
+      }).catch(() => setServerSearchResults(null));
+    }, 350);
+    return () => clearTimeout(t);
+  }, [searchQuery, destTypeFilter, themeFilter]);
+
+  useEffect(() => {
+    if (holidayPackages.length > 0) { setCatalogLoading(false); setCatalogError(false); }
+  }, [holidayPackages.length]);
+
+  useEffect(() => { setCatalogPage(1); }, [searchQuery, destTypeFilter, themeFilter, tourCategoryFilter, sortBy]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (holidayPackages.length === 0) { setCatalogLoading(false); setCatalogError(true); }
+    }, 6000);
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    setActivitySwaps([]);
+    setReviews([]);
+    setDepartures([]);
+    setSelectedDepartureIdx(-1);
+    if (selectedPackage?.id) {
+      packagesApi.getById(selectedPackage.id).then(res => {
+        if (res.success && res.data) {
+          const p: any = res.data;
+          setSelectedPackage(prev => prev ? { ...prev, ...p, id: p._id || p.id, sellingPrice: p.sellingPrice } as any : prev);
+        }
+      }).catch(() => {});
+      // fetch reviews
+      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/packages/${selectedPackage.id}/reviews`)
+        .then(r => r.json()).then(d => { if (d.success) setReviews(d.data || []); }).catch(() => {});
+      // fetch departures
+      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/packages/${selectedPackage.id}/departures`)
+        .then(r => r.json()).then(d => { if (d.success) setDepartures(d.data || []); }).catch(() => {});
+    }
+  }, [selectedPackage?.id]);
 
   // Tracking lookup state
   const [trackRefInput, setTrackRefInput] = useState('');
@@ -135,8 +203,10 @@ export const HolidaysModule: React.FC = () => {
   const finalDomestic = popularDomestic.length >= 2 ? popularDomestic : allAsDomestic;
 
   const getPackageSellingPrice = (pkg: HolidayPackage) => {
+    if ((pkg as any).sellingPrice) return (pkg as any).sellingPrice as number;
     const markup = adminHolidayConfig.partnerMarkupPercent || 15;
-    return Math.round(pkg.basePrice * (1 + markup / 100));
+    const discount = (pkg as any).discountPercent || 0;
+    return Math.round(pkg.basePrice * (1 + markup / 100) * (1 - discount / 100));
   };
 
   const getStrikethroughPrice = (sellingPrice: number, discountPct: number = 8) => {
@@ -144,7 +214,10 @@ export const HolidaysModule: React.FC = () => {
   };
 
   const calculateDrawerTotalPrice = (pkg: HolidayPackage) => {
-    const baseSelling = getPackageSellingPrice(pkg);
+    let baseSelling = getPackageSellingPrice(pkg);
+    if (selectedDepartureIdx >= 0 && departures[selectedDepartureIdx]?.priceOverride) {
+      baseSelling = departures[selectedDepartureIdx].priceOverride;
+    }
     const comfortMult = adminHolidayConfig.hotelTierMultiplierComfort ?? 0.9;
     const superiorMult = adminHolidayConfig.hotelTierMultiplierSuperior ?? 1.0;
     const luxuryMult = adminHolidayConfig.hotelTierMultiplierLuxury ?? 1.35;
@@ -159,7 +232,8 @@ export const HolidaysModule: React.FC = () => {
   };
 
   // Filter & Sort Logic
-  const filteredPackages = holidayPackages
+  const basePackages = serverSearchResults ? serverSearchResults : holidayPackages;
+  const filteredPackages = basePackages
     .filter(pkg => {
       const matchSearch =
         pkg.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -203,25 +277,58 @@ export const HolidaysModule: React.FC = () => {
       days: updatedDays,
       basePrice: newBasePrice
     });
+    setActivitySwaps(prev => {
+      const filtered = prev.filter(s => s.dayNumber !== dayNumber);
+      return [...filtered, { dayNumber, chosenActivityId: newActivity.id || '', chosenActivityTitle: newActivity.title, priceDelta: newActivity.priceDelta }];
+    });
     setSwappingDay(null);
     confetti({ particleCount: 40, spread: 60, origin: { y: 0.6 } });
   };
 
   // Handle Instant Booking from Drawer
-  const handleCompleteDrawerBooking = () => {
+  const handleCompleteDrawerBooking = async () => {
     if (!selectedPackage) return;
+    if (!drawerTravelDate) { toast.show('Please select a travel date.', 'error'); return; }
+    if (!drawerCustomerName.trim()) { toast.show('Please enter your name.', 'error'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(drawerCustomerEmail)) { toast.show('Please enter a valid email.', 'error'); return; }
+    const phoneClean = (drawerCustomerPhone || '').replace(/[^0-9]/g, '');
+    if (phoneClean.length < 10) { toast.show('Please enter a valid mobile number.', 'error'); return; }
     const totalAmount = calculateDrawerTotalPrice(selectedPackage);
     const wholesale = Math.round(selectedPackage.wholesaleCost * drawerAdults);
     const markupAmount = Math.max(0, totalAmount - wholesale);
+
+    const tierMap: Record<string, 'standard' | 'deluxe' | 'luxury'> = { 'Comfort': 'standard', 'Superior': 'deluxe', 'Luxury 5-Star': 'luxury' };
+    const customerName = drawerCustomerName.trim() || 'Guest Traveler';
+    const customerEmail = drawerCustomerEmail.trim() || callbackEmail || 'customer@gmail.com';
+    const customerPhone = drawerCustomerPhone || callbackPhone || '+91 98201 44521';
+
+    let ref = '';
+    let backendId = '';
+    try {
+      const res = await bookingsApi.create({
+        packageId: selectedPackage.id,
+        customerPhone,
+        customerName,
+        customerEmail,
+        travelDateFrom: drawerTravelDate,
+        adults: drawerAdults,
+        children: drawerChildren,
+        departureCitySelected: drawerDepartureCity,
+        hotelTierSelected: tierMap[drawerHotelTier] || 'deluxe',
+        activitySwaps: activitySwaps.map(s => ({ dayNumber: s.dayNumber, chosenActivityId: s.chosenActivityId, chosenActivityTitle: s.chosenActivityTitle, priceDelta: s.priceDelta })),
+        specialRequests: `Inquiry via TravelPulse Online Desk. Tier: ${drawerHotelTier}, Departure Hub: Ex-${drawerDepartureCity}`
+      });
+      if (res.success && res.data) { ref = res.data.bookingRef; backendId = res.data._id; }
+    } catch { /* offline fallback */ }
 
     const newBooking = createHolidayBooking({
       packageId: selectedPackage.id,
       packageTitle: selectedPackage.title,
       destination: selectedPackage.destination,
       destinationType: selectedPackage.destinationType || 'domestic',
-      customerName: 'Rohit Sharma (Direct Traveler)',
-      customerEmail: callbackEmail || 'customer@gmail.com',
-      customerPhone: callbackPhone || '+91 98201 44521',
+      customerName,
+      customerEmail,
+      customerPhone,
       departureCity: drawerDepartureCity,
       travelDate: drawerTravelDate,
       paxAdults: drawerAdults,
@@ -230,19 +337,35 @@ export const HolidaysModule: React.FC = () => {
       totalAmountUSD: totalAmount,
       wholesaleCostUSD: wholesale,
       markupAmountUSD: markupAmount,
-      status: 'confirmed',
-      customNotes: `Confirmed via Thomas Cook Online Desk. Tier: ${drawerHotelTier}, Departure Hub: Ex-${drawerDepartureCity}`
+      status: 'inquiry_received',
+      activitySwaps: activitySwaps,
+      customNotes: `Inquiry via TravelPulse Online Desk. Tier: ${drawerHotelTier}, Departure Hub: Ex-${drawerDepartureCity}`
     });
 
-    setBookingSuccessRef(newBooking.bookingReference);
+    if (ref) {
+      const bookings = holidayBackend.getBookings();
+      const updated = bookings.map(b => b.id === newBooking.id ? { ...b, bookingReference: ref, id: backendId || b.id } : b);
+      holidayBackend.saveBookings(updated);
+    }
+
+    setBookingSuccessRef(ref || newBooking.bookingReference);
     setIsCalculatorDrawerOpen(false);
     confetti({ particleCount: 90, spread: 80, origin: { y: 0.5 } });
   };
 
   // Handle Quick Callback Request
-  const handleRequestCallback = (e: React.FormEvent) => {
+  const handleRequestCallback = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!callbackPhone) return;
+    const phoneClean = callbackPhone.replace(/[^0-9]/g, '');
+    if (phoneClean.length < 10) { toast.show('Please enter a valid mobile number.', 'error'); return; }
+    if (callbackEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(callbackEmail)) { toast.show('Please enter a valid email.', 'error'); return; }
+    try {
+      await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/leads`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Callback Request', phone: callbackPhone, email: callbackEmail, source: 'callback', vertical: 'Holidays', packageId: selectedPackage?.id, packageTitle: selectedPackage?.title })
+      });
+    } catch { /* offline */ }
     setCallbackSuccess(true);
     setTimeout(() => setCallbackSuccess(false), 4000);
     confetti({ particleCount: 30, spread: 45, origin: { y: 0.7 } });
@@ -253,7 +376,7 @@ export const HolidaysModule: React.FC = () => {
     if (!selectedPackage) return;
     const sellingPrice = getPackageSellingPrice(selectedPackage);
     const text = encodeURIComponent(
-      `Hello Thomas Cook Holidays! I am inquiring about:\n` +
+      `Hello TravelPulse Holidays! I am inquiring about:\n` +
       `Package: ${selectedPackage.title}\n` +
       `Destination: ${selectedPackage.destination}\n` +
       `Duration: ${selectedPackage.durationDays}D / ${selectedPackage.durationNights || selectedPackage.durationDays - 1}N\n` +
@@ -270,7 +393,7 @@ export const HolidaysModule: React.FC = () => {
     const doc = new jsPDF();
     const sellingPrice = getPackageSellingPrice(selectedPackage);
 
-    // Header banner with Thomas Cook signature navy (#0F4CA4) & yellow strip
+    // Header banner with TravelPulse signature navy (#0F4CA4) & yellow strip
     doc.setFillColor(15, 76, 164);
     doc.rect(0, 0, 210, 38, 'F');
     doc.setFillColor(254, 233, 0);
@@ -279,7 +402,7 @@ export const HolidaysModule: React.FC = () => {
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text('THOMAS COOK INDIA — OFFICIAL TOUR BROCHURE', 14, 18);
+    doc.text('TravelPulse INDIA — OFFICIAL TOUR BROCHURE', 14, 18);
 
     doc.setFontSize(8.5);
     doc.setFont('helvetica', 'normal');
@@ -358,7 +481,7 @@ export const HolidaysModule: React.FC = () => {
     doc.setTextColor(15, 76, 164);
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text('THOMAS COOK INCLUSIONS & AMENITIES', 14, yPos);
+    doc.text('TravelPulse INCLUSIONS & AMENITIES', 14, yPos);
     yPos += 6;
 
     doc.setFontSize(8);
@@ -368,7 +491,7 @@ export const HolidaysModule: React.FC = () => {
       'Accommodation in verified quality hotels',
       'Daily breakfast & select dinners as per itinerary',
       'All transfers & sightseeing in comfortable AC vehicles',
-      'Dedicated Thomas Cook Tour Manager & local guides'
+      'Dedicated TravelPulse Tour Manager & local guides'
     ];
     incs.forEach(inc => {
       doc.text(`✓ ${inc}`, 16, yPos);
@@ -378,15 +501,39 @@ export const HolidaysModule: React.FC = () => {
     // Footer
     doc.setFontSize(7.5);
     doc.setTextColor(148, 163, 184);
-    doc.text('Official Thomas Cook India Tour Package. Itinerary subject to local weather and flight schedules.', 14, 285);
+    doc.text('Official TravelPulse India Tour Package. Itinerary subject to local weather and flight schedules.', 14, 285);
 
-    doc.save(`ThomasCook_Itinerary_${selectedPackage.id}.pdf`);
+    doc.save(`TravelPulse_Itinerary_${selectedPackage.id}.pdf`);
   };
 
-  // Lookup existing booking
-  const handleTrackLookup = () => {
+  // Lookup existing booking (backend first, local fallback)
+  const handleTrackLookup = async () => {
+    const ref = trackRefInput.trim();
+    if (!ref) return;
+    try {
+      const res = await (await import('../../services/apiClient')).bookingsApi.track(ref);
+      const b: any = res.data;
+      const mapped = {
+        id: b._id || b.id,
+        bookingReference: b.bookingRef || b.bookingReference,
+        packageTitle: b.packageTitle,
+        destination: b.packageDestination || b.destination,
+        customerName: b.customerName,
+        travelDate: b.travelDateFrom ? new Date(b.travelDateFrom).toISOString().split('T')[0] : b.travelDate,
+        departureCity: b.departureCitySelected || b.departureCity,
+        totalAmountUSD: b.totalAmountUSD,
+        status: b.status,
+        paxAdults: b.adults ?? b.paxAdults,
+        paxChildren: b.children ?? b.paxChildren,
+        selectedHotelTier: b.hotelTierSelected || b.selectedHotelTier
+      };
+      setTrackLookupResult(mapped);
+      return;
+    } catch {
+      // fall through to local
+    }
     const found = holidayBookings.find(
-      b => b.bookingReference.toLowerCase() === trackRefInput.toLowerCase() || b.id.toLowerCase() === trackRefInput.toLowerCase()
+      b => b.bookingReference.toLowerCase() === ref.toLowerCase() || b.id.toLowerCase() === ref.toLowerCase()
     );
     setTrackLookupResult(found || 'not_found');
   };
@@ -398,6 +545,7 @@ export const HolidaysModule: React.FC = () => {
     const sellingPrice = getPackageSellingPrice(selectedPackage);
     const strikethroughPrice = getStrikethroughPrice(sellingPrice, selectedPackage.discountPercent || 8);
     const drawerTotal = calculateDrawerTotalPrice(selectedPackage);
+    const drawerTierMult = drawerHotelTier === 'Comfort' ? (adminHolidayConfig.hotelTierMultiplierComfort ?? 0.9) : drawerHotelTier === 'Luxury 5-Star' ? (adminHolidayConfig.hotelTierMultiplierLuxury ?? 1.35) : (adminHolidayConfig.hotelTierMultiplierSuperior ?? 1.0);
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', fontFamily: 'var(--font-tc-primary)' }}>
@@ -457,7 +605,7 @@ export const HolidaysModule: React.FC = () => {
           >
             <div>
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#FEE900', color: '#0F4CA4', padding: '3px 12px', borderRadius: 20, fontSize: '0.75rem', fontWeight: 800, marginBottom: 6 }}>
-                <CheckCircle2 size={14} /> THOMAS COOK HOLIDAY CONFIRMED
+                <CheckCircle2 size={14} /> TravelPulse HOLIDAY CONFIRMED
               </div>
               <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800 }}>
                 Booking Reference: <span style={{ color: '#FEE900' }}>{bookingSuccessRef}</span>
@@ -472,6 +620,49 @@ export const HolidaysModule: React.FC = () => {
               onClick={handleDownloadItineraryPDF}
             >
               <Download size={14} /> Download Voucher PDF
+            </button>
+            <button
+              className="btn btn-sm"
+              style={{ background: '#198754', color: '#fff', fontWeight: 800, borderRadius: 100, border: 'none', padding: '0.5rem 1.25rem' }}
+              onClick={async () => {
+                try {
+                  const tr = await bookingsApi.track(bookingSuccessRef!);
+                  const bid = (tr.data as any)._id || (tr.data as any).id;
+                  const order = await paymentsApi.createOrder(bid);
+                  const data = order.data;
+                  if (data.key === 'mock' || !data.key) {
+                    await paymentsApi.verify(bid);
+                    toast.show('Payment successful (dev mode)! Booking confirmed.', 'success');
+                    confetti({ particleCount: 80, spread: 70, origin: { y: 0.5 } });
+                    return;
+                  }
+                  // Load Razorpay checkout script
+                  await new Promise<void>((resolve, reject) => {
+                    if ((window as any).Razorpay) return resolve();
+                    const s = document.createElement('script');
+                    s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+                    s.onload = () => resolve();
+                    s.onerror = () => reject(new Error('Failed to load Razorpay'));
+                    document.body.appendChild(s);
+                  });
+                  const rzp = new (window as any).Razorpay({
+                    key: data.key,
+                    amount: data.amount,
+                    currency: data.currency,
+                    order_id: data.orderId,
+                    handler: async () => {
+                      await paymentsApi.verify(bid);
+                      toast.show('Payment successful! Booking confirmed.', 'success');
+                      confetti({ particleCount: 80, spread: 70, origin: { y: 0.5 } });
+                    }
+                  });
+                  rzp.open();
+                } catch (e: any) {
+                  toast.show(e?.message || 'Payment failed', 'error');
+                }
+              }}
+            >
+              Pay Now
             </button>
           </div>
         )}
@@ -513,13 +704,13 @@ export const HolidaysModule: React.FC = () => {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 <span style={{ background: '#EFF8FF', color: '#0F4CA4', fontWeight: 800, fontSize: '0.8rem', padding: '3px 10px', borderRadius: 20 }}>
-                  {selectedPackage.durationDays}N / {selectedPackage.durationDays + 1}D
+                  {selectedPackage.durationNights || selectedPackage.durationDays - 1}N / {selectedPackage.durationDays}D
                 </span>
                 <span style={{ background: '#F6F7F9', color: '#565E73', fontWeight: 600, fontSize: '0.75rem', padding: '3px 10px', borderRadius: 20 }}>
                   {selectedPackage.category}
                 </span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: '0.8rem', color: '#FF7700', fontWeight: 700 }}>
-                  <Star size={14} fill="#FF7700" color="#FF7700" /> 4.2 (230 Reviews)
+                  <Star size={14} fill="#FF7700" color="#FF7700" /> {selectedPackage.rating || 4.5} ({selectedPackage.reviewCount || 0} Reviews)
                 </span>
               </div>
 
@@ -803,7 +994,7 @@ export const HolidaysModule: React.FC = () => {
                         'Daily buffet breakfasts and authentic regional dinners',
                         'All transfers and sightseeing in comfortable private AC vehicles',
                         'Entry permits and tickets for all scheduled attractions',
-                        'Dedicated Thomas Cook Tour Manager & local guides'
+                        'Dedicated TravelPulse Tour Manager & local guides'
                       ]).map((inc, idx) => (
                         <li key={idx}>{inc}</li>
                       ))}
@@ -850,16 +1041,78 @@ export const HolidaysModule: React.FC = () => {
             {pdpActiveTab === 'summary' && (
               <div className="card" style={{ padding: '1.75rem', borderRadius: 16 }}>
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#24262D', margin: '0 0 1rem' }}>
-                  Thomas Cook Assurance & Policies
+                  TravelPulse Assurance & Policies
                 </h3>
                 <p style={{ fontSize: '0.85rem', color: '#565E73', lineHeight: 1.6, margin: '0 0 1rem' }}>
-                  Over 140 years of trusted travel operations. Every Thomas Cook tour includes round-the-clock ground support, sanitized transport, and guaranteed hotel reservations.
+                  Over 140 years of trusted travel operations. Every TravelPulse tour includes round-the-clock ground support, sanitized transport, and guaranteed hotel reservations.
                 </p>
                 <div style={{ background: '#F5FAFF', border: '1px solid #D7DAE0', borderRadius: 12, padding: '1rem', fontSize: '0.82rem', color: '#0F4CA4' }}>
                   🛡️ <strong>Cancellation Policy:</strong> {selectedPackage.cancellationPolicy || 'Free cancellation up to 14 days before departure date.'}
                 </div>
               </div>
             )}
+
+            {/* REVIEWS */}
+            <div className="card" style={{ padding: '1.5rem', borderRadius: 16 }}>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#24262D', margin: '0 0 1rem' }}>
+                Traveler Reviews ({reviews.length})
+              </h3>
+              {reviews.length === 0 && (
+                <p style={{ fontSize: '0.82rem', color: '#565E73' }}>No reviews yet. Be the first to review!</p>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
+                {reviews.slice(0, 5).map((r: any, i: number) => (
+                  <div key={i} style={{ borderBottom: '1px solid #EDEEF1', paddingBottom: '0.75rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#24262D' }}>{r.customerName}</span>
+                      <span style={{ color: '#FF7700', fontWeight: 700, fontSize: '0.8rem' }}>{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</span>
+                    </div>
+                    {r.comment && <p style={{ fontSize: '0.8rem', color: '#565E73', margin: '4px 0 0' }}>{r.comment}</p>}
+                  </div>
+                ))}
+              </div>
+              {/* Submit review (requires login token) */}
+              <div style={{ borderTop: '1px solid #EDEEF1', paddingTop: '1rem' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#24262D' }}>Your rating:</span>
+                  {[1,2,3,4,5].map(n => (
+                    <button key={n} onClick={() => setReviewRating(n)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: n <= reviewRating ? '#FF7700' : '#D7DAE0', fontSize: '1.1rem' }}>★</button>
+                  ))}
+                </div>
+                <textarea
+                  className="form-input"
+                  placeholder="Share your experience (optional)"
+                  value={reviewComment}
+                  onChange={e => setReviewComment(e.target.value)}
+                  style={{ fontSize: '0.82rem', minHeight: 60, marginBottom: 8 }}
+                />
+                <button
+                  className="btn btn-sm btn-primary"
+                  style={{ background: '#0F4CA4', borderColor: '#0F4CA4', borderRadius: 100, fontSize: '0.78rem' }}
+                  onClick={async () => {
+                    const token = localStorage.getItem('tp_jwt_token');
+                    if (!token) { toast.show('Please log in to submit a review.', 'error'); return; }
+                    try {
+                      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/packages/${selectedPackage.id}/reviews`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ rating: reviewRating, comment: reviewComment })
+                      });
+                      const data = await res.json();
+                      if (data.success) {
+                        setReviews(prev => [data.data, ...prev]);
+                        setReviewComment('');
+                        confetti({ particleCount: 30, spread: 45, origin: { y: 0.7 } });
+                      } else {
+                        toast.show(data.message || 'Failed to submit review', 'error');
+                      }
+                    } catch { toast.show('Failed to submit review', 'error'); }
+                  }}
+                >
+                  Submit Review
+                </button>
+              </div>
+            </div>
 
           </div>
 
@@ -885,7 +1138,7 @@ export const HolidaysModule: React.FC = () => {
                 </div>
 
                 <div style={{ background: '#EFF8FF', padding: '0.75rem', borderRadius: 8, fontSize: '0.78rem', color: '#0F4CA4', fontWeight: 600, marginBottom: '1.25rem' }}>
-                  🎁 Earn <strong>{Math.round(sellingPrice * (adminHolidayConfig.loyaltyPointsRate ?? 0.05))} Thomas Cook Loyalty Points</strong> with this booking
+                  🎁 Earn <strong>{Math.round(sellingPrice * (adminHolidayConfig.loyaltyPointsRate ?? 0.05))} TravelPulse Loyalty Points</strong> with this booking
                 </div>
 
                 <button
@@ -911,7 +1164,7 @@ export const HolidaysModule: React.FC = () => {
                   <PhoneCall size={16} color="#0F4CA4" /> Want us to call you?
                 </h4>
                 <p style={{ fontSize: '0.75rem', color: '#565E73', margin: '0 0 1rem' }}>
-                  Leave your details and a Thomas Cook travel expert will call you back within 15 minutes.
+                  Leave your details and a TravelPulse travel expert will call you back within 15 minutes.
                 </p>
 
                 {callbackSuccess ? (
@@ -948,7 +1201,7 @@ export const HolidaysModule: React.FC = () => {
                         onChange={e => setCallbackConsent(e.target.checked)}
                         style={{ marginTop: 2 }}
                       />
-                      <span>I accept the Privacy Policy and authorize Thomas Cook to contact me.</span>
+                      <span>I accept the Privacy Policy and authorize TravelPulse to contact me.</span>
                     </label>
                     <button
                       type="submit"
@@ -1013,6 +1266,29 @@ export const HolidaysModule: React.FC = () => {
                   </div>
 
                   {/* Travel Date */}
+                  {departures.length > 0 && (
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.82rem', fontWeight: 700 }}>Departure Date</label>
+                      <select
+                        className="form-select"
+                        value={selectedDepartureIdx}
+                        onChange={e => {
+                          const idx = Number(e.target.value);
+                          setSelectedDepartureIdx(idx);
+                          if (idx >= 0 && departures[idx]) {
+                            setDrawerTravelDate(new Date(departures[idx].date).toISOString().split('T')[0]);
+                          }
+                        }}
+                      >
+                        <option value={-1}>Select a departure</option>
+                        {departures.map((d, i) => (
+                          <option key={i} value={i} disabled={(d.seatsTotal - d.seatsBooked) <= 0}>
+                            {new Date(d.date).toLocaleDateString()} — {Math.max(0, d.seatsTotal - d.seatsBooked)} seats left{d.priceOverride ? ` — USD ${d.priceOverride}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div className="form-group" style={{ marginBottom: 0 }}>
                     <label className="form-label" style={{ fontSize: '0.82rem', fontWeight: 700 }}>Travel Date</label>
                     <input
@@ -1021,6 +1297,20 @@ export const HolidaysModule: React.FC = () => {
                       value={drawerTravelDate}
                       onChange={e => setDrawerTravelDate(e.target.value)}
                     />
+                  </div>
+
+                  {/* Customer details */}
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ fontSize: '0.82rem', fontWeight: 700 }}>Full Name *</label>
+                    <input className="form-input" required value={drawerCustomerName} onChange={e => setDrawerCustomerName(e.target.value)} placeholder="Your full name" />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ fontSize: '0.82rem', fontWeight: 700 }}>Email *</label>
+                    <input type="email" className="form-input" required value={drawerCustomerEmail} onChange={e => setDrawerCustomerEmail(e.target.value)} placeholder="you@example.com" />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ fontSize: '0.82rem', fontWeight: 700 }}>Mobile Number *</label>
+                    <input type="tel" className="form-input" required value={drawerCustomerPhone} onChange={e => setDrawerCustomerPhone(e.target.value)} placeholder="+91 98765 43210" />
                   </div>
 
                   {/* Hotel Tier */}
@@ -1095,12 +1385,8 @@ export const HolidaysModule: React.FC = () => {
                   {/* Summary Breakdown */}
                   <div style={{ borderTop: '1px solid #EDEEF1', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.8rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#565E73' }}>
-                      <span>Wholesale Rate:</span>
-                      <span>{formatPrice(selectedPackage.basePrice)}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#565E73' }}>
-                      <span>Thomas Cook Markup:</span>
-                      <span style={{ color: '#0F4CA4', fontWeight: 700 }}>+{adminHolidayConfig.partnerMarkupPercent}% Included</span>
+                      <span>Base Price per Adult:</span>
+                      <span>{formatPrice(getPackageSellingPrice(selectedPackage))}</span>
                     </div>
                     {drawerAdults >= 4 && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', color: '#198754', fontWeight: 700 }}>
@@ -1114,6 +1400,17 @@ export const HolidaysModule: React.FC = () => {
 
               {/* Bottom Action Section */}
               <div style={{ borderTop: '1px solid #EDEEF1', paddingTop: '1.25rem' }}>
+                {/* Price breakdown */}
+                <div style={{ fontSize: '0.78rem', color: '#565E73', marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Base per adult</span><span>{formatPrice(getPackageSellingPrice(selectedPackage))}</span></div>
+                  {selectedDepartureIdx >= 0 && departures[selectedDepartureIdx]?.priceOverride && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Departure override</span><span>{formatPrice(departures[selectedDepartureIdx].priceOverride)}</span></div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Adults x {drawerAdults}</span><span>{formatPrice(Math.round(getPackageSellingPrice(selectedPackage) * drawerTierMult * drawerAdults))}</span></div>
+                  {drawerChildren > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Children x {drawerChildren} (60%)</span><span>{formatPrice(Math.round(getPackageSellingPrice(selectedPackage) * drawerTierMult * 0.6 * drawerChildren))}</span></div>}
+                  {drawerAdults >= 4 && adminHolidayConfig.groupDiscountPercent > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: '#198754' }}><span>Group discount</span><span>-{adminHolidayConfig.groupDiscountPercent}%</span></div>}
+                  {activitySwaps.length > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Activity upgrades</span><span>+${activitySwaps.reduce((s, a) => s + (a.priceDelta || 0), 0)}</span></div>}
+                </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
                   <span style={{ fontSize: '0.85rem', color: '#667085', fontWeight: 600 }}>Total Package Price:</span>
                   <span style={{ fontSize: '1.8rem', fontWeight: 900, color: '#0F4CA4' }}>
@@ -1143,7 +1440,7 @@ export const HolidaysModule: React.FC = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem', fontFamily: 'var(--font-tc-primary)' }}>
       
-      {/* Editorial Hero Header with Signature Thomas Cook Navy & Yellow */}
+      {/* Editorial Hero Header with Signature TravelPulse Navy & Yellow */}
       <div 
         style={{
           background: 'linear-gradient(135deg, #0F4CA4 0%, #0A3778 60%, #1e293b 100%)',
@@ -1158,7 +1455,7 @@ export const HolidaysModule: React.FC = () => {
       >
         <div style={{ maxWidth: 880, position: 'relative', zIndex: 2 }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#FEE900', color: '#0F4CA4', padding: '4px 14px', borderRadius: 20, fontSize: '0.78rem', fontWeight: 800, marginBottom: '1.25rem' }}>
-            <Award size={14} /> OFFICIAL THOMAS COOK PARTNER • TRUSTED SINCE 1881
+            <Award size={14} /> OFFICIAL TravelPulse PARTNER • TRUSTED SINCE 1881
           </div>
 
           <h1 style={{ fontFamily: 'var(--font-tc-editorial)', fontSize: '3rem', fontWeight: 600, letterSpacing: '-0.02em', margin: '0 0 1rem', lineHeight: 1.15 }}>
@@ -1466,7 +1763,7 @@ export const HolidaysModule: React.FC = () => {
         </div>
       </div>
 
-      {/* Thomas Cook Holiday Assurance Strip */}
+      {/* TravelPulse Holiday Assurance Strip */}
       <div 
         style={{
           display: 'flex',
@@ -1483,7 +1780,7 @@ export const HolidaysModule: React.FC = () => {
           TC
         </div>
         <div>
-          <div style={{ fontWeight: 800, color: '#0F4CA4', fontSize: '0.95rem' }}>{adminHolidayConfig.assuranceTitle || 'Thomas Cook Holiday Assurance'}</div>
+          <div style={{ fontWeight: 800, color: '#0F4CA4', fontSize: '0.95rem' }}>{adminHolidayConfig.assuranceTitle || 'TravelPulse Holiday Assurance'}</div>
           <div style={{ fontSize: '0.78rem', color: '#565E73' }}>140+ Years of Heritage • Verified 4★ Stays • Dedicated English/Hindi Tour Manager</div>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -1612,7 +1909,7 @@ export const HolidaysModule: React.FC = () => {
       {activeTab === 'tracker' && (
         <div className="card" style={{ padding: '1.75rem', borderRadius: 16, borderLeft: '4px solid #0F4CA4' }}>
           <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#24262D', margin: '0 0 0.5rem' }}>
-            Track Your Thomas Cook Holiday Booking
+            Track Your TravelPulse Holiday Booking
           </h3>
           <p style={{ fontSize: '0.82rem', color: '#565E73', margin: '0 0 1rem' }}>
             Enter your booking reference code (e.g. <span style={{ color: '#0F4CA4', fontWeight: 700 }}>TC-IN-984210</span>) to view itinerary confirmation and vouchers.
@@ -1672,8 +1969,23 @@ export const HolidaysModule: React.FC = () => {
         </div>
       )}
 
-      {/* REAL THOMAS COOK PACKAGE CARDS LISTING (SRP) */}
+      {/* REAL TravelPulse PACKAGE CARDS LISTING (SRP) */}
       <div id="holiday-packages-catalog">
+        {catalogLoading && (
+          <div style={{ padding: '2rem', textAlign: 'center', color: '#565E73' }}>
+            Loading holiday packages…
+          </div>
+        )}
+        {catalogError && !catalogLoading && (
+          <div style={{ padding: '2rem', textAlign: 'center', color: '#ef4444' }}>
+            Failed to load packages. <button className="btn btn-sm btn-secondary" onClick={() => window.location.reload()}>Retry</button>
+          </div>
+        )}
+        {!catalogLoading && !catalogError && filteredPackages.length === 0 && (
+          <div style={{ padding: '2rem', textAlign: 'center', color: '#565E73' }}>
+            No packages found. Try adjusting filters or search.
+          </div>
+        )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: 8 }}>
           <div>
             <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#24262D', margin: 0 }}>
@@ -1684,7 +1996,7 @@ export const HolidaysModule: React.FC = () => {
             </p>
           </div>
           <div style={{ fontSize: '0.78rem', color: '#565E73' }}>
-            All rates include {adminHolidayConfig.partnerMarkupPercent}% partner commission
+            Prices are per adult on twin sharing basis
           </div>
         </div>
 
@@ -1749,8 +2061,9 @@ export const HolidaysModule: React.FC = () => {
             </button>
           </div>
         ) : (
+          <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1.75rem' }}>
-            {filteredPackages.map(pkg => {
+            {filteredPackages.slice((catalogPage - 1) * PAGE_SIZE, catalogPage * PAGE_SIZE).map(pkg => {
               const sellingPrice = getPackageSellingPrice(pkg);
               const strikethroughPrice = getStrikethroughPrice(sellingPrice, pkg.discountPercent || 8);
 
@@ -1797,7 +2110,7 @@ export const HolidaysModule: React.FC = () => {
                     {/* Bottom Duration & Hub Tag */}
                     <div style={{ position: 'absolute', bottom: 10, left: 10, right: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ background: 'rgba(36, 38, 45, 0.85)', color: '#fff', fontSize: '0.72rem', padding: '3px 8px', borderRadius: 4, fontWeight: 700 }}>
-                        {pkg.durationDays}N / {pkg.durationDays + 1}D
+                        {pkg.durationNights || pkg.durationDays - 1}N / {pkg.durationDays}D
                       </span>
                       <span style={{ background: 'rgba(36, 38, 45, 0.85)', color: '#FEE900', fontSize: '0.72rem', padding: '3px 8px', borderRadius: 4, fontWeight: 700 }}>
                         Ex-{selectedDepartureCity}
@@ -1884,17 +2197,25 @@ export const HolidaysModule: React.FC = () => {
               );
             })}
           </div>
+          {filteredPackages.length > PAGE_SIZE && (
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: '1rem' }}>
+              <button className="btn btn-sm btn-secondary" disabled={catalogPage <= 1} onClick={() => setCatalogPage(p => Math.max(1, p - 1))}>Prev</button>
+              <span style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', fontWeight: 700 }}>Page {catalogPage} of {Math.ceil(filteredPackages.length / PAGE_SIZE)}</span>
+              <button className="btn btn-sm btn-secondary" disabled={catalogPage >= Math.ceil(filteredPackages.length / PAGE_SIZE)} onClick={() => setCatalogPage(p => p + 1)}>Next</button>
+            </div>
+          )}
+          </>
         )}
       </div>
 
-      {/* "Why Thomas Cook?" 5 Heritage & Trust Pillars Grid */}
+      {/* "Why TravelPulse?" 5 Heritage & Trust Pillars Grid */}
       <div className="card" style={{ padding: '2.5rem 2rem', borderRadius: 24, background: '#F5FAFF', border: '1px solid #D7DAE0' }}>
         <div style={{ textAlign: 'center', maxWidth: 640, margin: '0 auto 2rem' }}>
           <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#0F4CA4', textTransform: 'uppercase' }}>
             Unmatched Heritage & Safety
           </span>
           <h2 style={{ fontFamily: 'var(--font-tc-editorial)', fontSize: '2.2rem', fontWeight: 600, color: '#24262D', margin: '4px 0 8px' }}>
-            Why Travel with Thomas Cook?
+            Why Travel with TravelPulse?
           </h2>
           <p style={{ fontSize: '0.88rem', color: '#565E73', margin: 0 }}>
             Leading Indian travelers to extraordinary global experiences since 1881.

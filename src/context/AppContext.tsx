@@ -101,7 +101,7 @@ interface AppContextType {
   updateAdminVisaConfig: (cfg: Partial<AdminVisaConfig>) => void;
   calculateGuaranteedDate: (days: number) => string;
 
-  // Thomas Cook Holidays Full-Stack Database & Admin Config
+  // TravelPulse Holidays Full-Stack Database & Admin Config
   holidayPackages: HolidayPackage[];
   updateHolidayPackage: (id: string, updates: Partial<HolidayPackage>) => void;
   addHolidayPackage: (newPkg: HolidayPackage) => void;
@@ -358,12 +358,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return visaBackend.calculateGuaranteedDate(days);
   };
 
-  // Thomas Cook Holidays State & Handlers
+  // TravelPulse Holidays State & Handlers
   const [holidayPackages, setHolidayPackages] = useState<HolidayPackage[]>(() => holidayBackend.getPackages());
   const [holidayBookings, setHolidayBookings] = useState<HolidayBookingRecord[]>(() => holidayBackend.getBookings());
   const [adminHolidayConfig, setAdminHolidayConfig] = useState<AdminHolidayConfig>(() => holidayBackend.getAdminConfig());
 
-  // Sync Thomas Cook Holidays from Express MongoDB Backend on mount
+  // Sync TravelPulse Holidays from Express MongoDB Backend on mount
   useEffect(() => {
     let isMounted = true;
     holidayBackend.syncFromBackend().then(({ packages, config }) => {
@@ -383,12 +383,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const updated = holidayBackend.updatePackage(id, updates);
     setHolidayPackages(updated);
     logAuditAction(`Holiday Package Updated: ${id}`, 'Offline Rate', id, 'Prev Config', JSON.stringify(updates));
+    holidayBackend.syncFromBackend().then(({ packages }) => setHolidayPackages(packages)).catch(() => {});
   };
 
   const addHolidayPackage = (newPkg: HolidayPackage) => {
     const updated = holidayBackend.addPackage(newPkg);
     setHolidayPackages(updated);
     logAuditAction(`New Holiday Package Added: ${newPkg.title}`, 'Offline Rate', newPkg.id, 'None', newPkg.destination);
+    // Refresh from backend to reconcile ids
+    holidayBackend.syncFromBackend().then(({ packages }) => setHolidayPackages(packages)).catch(() => {});
   };
 
   const deleteHolidayPackage = (id: string) => {
@@ -418,7 +421,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (cfg.partnerMarkupPercent !== undefined) {
       updateAdminMarkup('holidaysPercent', cfg.partnerMarkupPercent);
     }
-    logAuditAction('Thomas Cook Holiday Engine Settings Changed', 'Markup', 'holiday-engine', JSON.stringify(current), JSON.stringify(updated));
+    logAuditAction('TravelPulse Holiday Engine Settings Changed', 'Markup', 'holiday-engine', JSON.stringify(current), JSON.stringify(updated));
   };
 
   // Checkout modal

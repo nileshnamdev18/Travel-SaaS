@@ -91,6 +91,7 @@ export interface ApiHolidayPackage {
   durationNights: number;
   departureCities: string[];
   basePrice: number;
+  sellingPrice?: number;
   heroImage: string;
   galleryImages: string[];
   highlights: string[];
@@ -159,6 +160,18 @@ export const packagesApi = {
   remove: (id: string) =>
     request<ApiResponse<null>>('DELETE', `/packages/${id}`, undefined, true),
 
+  uploadImage: async (file: File): Promise<ApiResponse<{ url: string }>> => {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append('file', file);
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${BASE_URL}/packages/upload-image`, { method: 'POST', headers, body: formData });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+    return data;
+  },
+
   extractFromPdf: async (file: File): Promise<ApiResponse<Partial<ApiHolidayPackage>>> => {
     const token = getToken();
     const formData = new FormData();
@@ -212,6 +225,8 @@ export interface ApiBooking {
 export interface CreateBookingPayload {
   packageId: string;
   customerPhone: string;
+  customerName?: string;
+  customerEmail?: string;
   travelDateFrom: string;
   travelDateTo?: string;
   adults?: number;
@@ -228,6 +243,8 @@ export const bookingsApi = {
     request<ApiResponse<ApiBooking>>('POST', '/bookings', data, true),
 
   myBookings: () => request<ApiResponse<ApiBooking[]>>('GET', '/bookings/my', undefined, true),
+
+  track: (ref: string) => request<ApiResponse<ApiBooking>>('GET', `/bookings/track/${encodeURIComponent(ref)}`),
 
   getById: (id: string) => request<ApiResponse<ApiBooking>>('GET', `/bookings/${id}`, undefined, true),
 
@@ -298,6 +315,14 @@ export const configApi = {
 
   update: (data: Partial<ApiHolidayConfigAdmin>) =>
     request<ApiResponse<ApiHolidayConfigAdmin>>('PUT', '/config/holiday', data, true)
+};
+
+// ─── Payments ─────────────────────────────────────────────────────────────────
+export const paymentsApi = {
+  createOrder: (bookingId: string) =>
+    request<ApiResponse<{ orderId: string; amount: number; currency: string; key: string }>>('POST', '/payments/create-order', { bookingId }, true),
+  verify: (bookingId: string) =>
+    request<ApiResponse<ApiBooking>>('POST', '/payments/verify', { bookingId }, true)
 };
 
 // ─── Health ────────────────────────────────────────────────────────────────────

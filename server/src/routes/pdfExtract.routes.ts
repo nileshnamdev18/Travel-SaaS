@@ -432,8 +432,8 @@ router.post(
           luxury: `${destination} Palace & Luxury Resort`
         },
         days,
-        isBestSeller: true,
-        isFeatured: true,
+        isBestSeller: false,
+        isFeatured: false,
         isTrending: false,
         rating: 4.6,
         reviewCount: 142,
