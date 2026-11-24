@@ -1038,6 +1038,14 @@ export async function seedDatabase() {
       console.log('ℹ️  Super admin already exists:', adminEmail);
     }
 
+    // Also create demo customer for client testing
+    const custEmail = 'customer@travelpulse.in';
+    const existingCust = await User.findOne({ email: custEmail });
+    if (!existingCust) {
+      await User.create({ name: 'Demo Customer', email: custEmail, password: 'Customer@123', role: 'customer', phone: '+91 98765 43210' });
+      console.log('✅ Demo customer created:', custEmail);
+    }
+
     // 2. Upsert rich holiday packages
     for (const pkg of SEED_PACKAGES) {
       await HolidayPackage.findOneAndUpdate(

@@ -11,13 +11,10 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/travel
 mongoose.connect(MONGODB_URI)
   .then(async () => {
     console.log('✅ MongoDB connected:', MONGODB_URI);
-    // Auto-seed if no packages exist (first deploy)
+    // Auto-seed (idempotent: creates admin/customer users + packages + config if missing)
     try {
-      const count = await mongoose.connection.collection('holidaypackages').countDocuments();
-      if (count === 0) {
-        console.log('🌱 No packages found — running seed...');
-        await seedDatabase();
-      }
+      console.log('🌱 Running seed (idempotent)...');
+      await seedDatabase();
     } catch (e) { console.warn('Auto-seed skipped:', e); }
     const app = createApp();
     app.listen(PORT, () => {
