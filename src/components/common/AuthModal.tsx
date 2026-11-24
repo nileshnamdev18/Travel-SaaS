@@ -153,6 +153,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, initialMode = 'lo
           padding: '0.75rem', marginTop: '1rem', fontSize: '0.78rem', color: '#0369a1'
         }}>
           <div style={{ fontWeight: 700, marginBottom: '6px' }}>⚡ Quick 1-Click Demo Login:</div>
+          <div style={{ fontSize: '0.72rem', color: '#0369a1', marginBottom: '6px' }}>
+            Use these defaults unless you changed ADMIN_DEFAULT_EMAIL / ADMIN_DEFAULT_PASSWORD in Render env.
+          </div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <button
               type="button"
