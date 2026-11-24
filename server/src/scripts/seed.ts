@@ -1030,12 +1030,15 @@ export async function seedDatabase() {
     // 1. Create/update super admin
     const adminEmail = process.env.ADMIN_DEFAULT_EMAIL || 'admin@travelpulse.in';
     const adminPass = process.env.ADMIN_DEFAULT_PASSWORD || 'Admin@123';
-    let admin = await User.findOne({ email: adminEmail });
-    if (!admin) {
-      admin = await User.create({ name: 'Super Admin', email: adminEmail, password: adminPass, role: 'super_admin' });
+    const existing = await User.findOne({ email: adminEmail });
+    if (!existing) {
+      await User.create({ name: 'Super Admin', email: adminEmail, password: adminPass, role: 'super_admin', phone: '+91 98765 43210' });
       console.log('✅ Super admin created:', adminEmail);
     } else {
-      console.log('ℹ️  Super admin already exists:', adminEmail);
+      // Reset password to configured value (idempotent) so client testing works
+      existing.password = adminPass;
+      await existing.save();
+      console.log('ℹ️  Super admin exists; password reset:', adminEmail);
     }
 
     // Also create demo customer for client testing
@@ -1044,6 +1047,10 @@ export async function seedDatabase() {
     if (!existingCust) {
       await User.create({ name: 'Demo Customer', email: custEmail, password: 'Customer@123', role: 'customer', phone: '+91 98765 43210' });
       console.log('✅ Demo customer created:', custEmail);
+    } else {
+      existingCust.password = 'Customer@123';
+      await existingCust.save();
+      console.log('ℹ️  Demo customer exists; password reset:', custEmail);
     }
 
     // 2. Upsert rich holiday packages
