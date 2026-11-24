@@ -1025,11 +1025,8 @@ const SEED_PACKAGES = [
   }
 ];
 
-async function seed() {
+export async function seedDatabase() {
   try {
-    await mongoose.connect(MONGODB_URI);
-    console.log('✅ MongoDB connected');
-
     // 1. Create/update super admin
     const adminEmail = process.env.ADMIN_DEFAULT_EMAIL || 'admin@travelpulse.in';
     const adminPass = process.env.ADMIN_DEFAULT_PASSWORD || 'Admin@123';
@@ -1143,11 +1140,23 @@ async function seed() {
     console.log('✅ Admin config seeded with dynamic marketing & pricing properties');
 
     console.log('\n🎉 Seed complete!\n');
-    process.exit(0);
   } catch (err) {
     console.error('❌ Seed error:', err);
-    process.exit(1);
   }
 }
 
-seed();
+// Allow running as standalone script
+if (require.main === module) {
+  (async () => {
+    try {
+      await mongoose.connect(MONGODB_URI);
+      console.log('✅ MongoDB connected');
+      await seedDatabase();
+      await mongoose.disconnect();
+      process.exit(0);
+    } catch (err) {
+      console.error('❌ Seed error:', err);
+      process.exit(1);
+    }
+  })();
+}
